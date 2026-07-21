@@ -38,8 +38,9 @@ export default function Login() {
     e.preventDefault()
     const result = await dispatch(login({ email, password }))
     if (login.fulfilled.match(result)) {
-      // rol_id 1 = Estudiante -> pantalla de alumnos.
-      const destino = result.payload?.user?.rol_id === 1 ? '/alumnos' : '/'
+      // Redireccion por rol: 1 = Estudiante, 2 = Docente.
+      const rol = result.payload?.user?.rol_id
+      const destino = rol === 1 ? '/alumnos' : rol === 2 ? '/profesor' : '/'
       navigate(destino)
     }
   }

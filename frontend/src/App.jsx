@@ -5,6 +5,7 @@ import Login from './features/auth/Login.jsx'
 import Register from './features/auth/Register.jsx'
 import CalendarView from './features/bookings/CalendarView.jsx'
 import AlumnosDashboard from './features/alumnos/AlumnosDashboard.jsx'
+import ProfesorDashboard from './features/profesor/ProfesorDashboard.jsx'
 import { selectIsAuthenticated } from './features/auth/authSlice.js'
 
 function PrivateRoute({ children }) {
@@ -22,6 +23,14 @@ export default function App() {
         element={
           <PrivateRoute>
             <AlumnosDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/profesor"
+        element={
+          <PrivateRoute>
+            <ProfesorDashboard />
           </PrivateRoute>
         }
       />
