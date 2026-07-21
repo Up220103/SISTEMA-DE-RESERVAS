@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Fuente base del cuerpo: IBM Plex Sans (tipografia UPA). */
+@layer base {
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+}
+
+/* Utilidades tipograficas UPA (ver guia de tipografia). */
+@layer utilities {
+  /* Titulos, headings, logo, nombres de espacios, botones principales. */
+  .font-display {
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+  /* Etiquetas pequenas, folio, matricula, uppercase tags, hora del calendario. */
+  .font-mono-upa {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+}

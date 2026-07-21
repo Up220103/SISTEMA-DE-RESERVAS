@@ -1,0 +1,35 @@
+# =============================================================================
+#  Docker Compose · Base de datos "sistema_reservas_upa"
+#  Levanta MySQL 8 y ejecuta automáticamente backend/db/sistema_reservas_upa.sql
+#  (el script crea la base de datos "reservas_upa" con tablas, datos y triggers)
+#
+#  Uso:
+#    docker compose -f docker-compose.db.yml up -d
+#    docker compose -f docker-compose.db.yml logs -f mysql
+#    docker compose -f docker-compose.db.yml down          (conserva los datos)
+#    docker compose -f docker-compose.db.yml down -v       (borra los datos) :)
+# =============================================================================
+
+services:
+  mysql-upa:
+    image: mysql:8.0
+    container_name: reservas-upa-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_upa_data:/var/lib/mysql
+      # El script se ejecuta solo la primera vez que el volumen está vacío
+      - ./backend/db/sistema_reservas_upa.sql:/docker-entrypoint-initdb.d/01-sistema_reservas_upa.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_upa_data:
+    driver: local

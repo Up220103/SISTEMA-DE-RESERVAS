@@ -1,0 +1,64 @@
+name: CI/CD - Sistema de Reservas
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [main, develop]
+
+jobs:
+  # ETAPA 1: Validaciones en tu máquina local
+  qa:
+    name: Q/A - Validaciones de Código
+    runs-on: [self-hosted, Windows, QA]
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Backend - Instalar dependencias
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend - Validar sintaxis
+        working-directory: backend
+        run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
+
+      - name: Frontend - Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend - Probar compilación (Build)
+        working-directory: frontend
+        run: npm run build
+
+  # ETAPA 2: Despliegue a Azure (Se ejecuta en la nube de GitHub solo si Q/A pasa)
+  deploy:
+    name: Deploy a Azure App Service
+    needs: qa
+    runs-on: ubuntu-latest
+    # Solo se ejecuta cuando se hace merge o push directo a la rama main
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # COMENTADO HASTA QUE VINCULEN AZURE:
+      # - name: Iniciar sesión en Azure
+      #   uses: azure/login@v2
+      #   with:
+      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # - name: Desplegar a Azure App Service
+      #   uses: azure/webapps-deploy@v3
+      #   with:
+      #     app-name: 'tu-app-service-name' # Aquí irá el nombre de su Azure App Service
+      #     slot-name: 'production'
+      #     package: '.'
+
+      - name: Simulador de Deploy (Temporal)
+        run: echo "La estructura de Azure está lista. Esperando vinculación de credenciales secretas."
