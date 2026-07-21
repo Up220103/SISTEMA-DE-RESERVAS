@@ -37,7 +37,11 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const result = await dispatch(login({ email, password }))
-    if (login.fulfilled.match(result)) navigate('/')
+    if (login.fulfilled.match(result)) {
+      // rol_id 1 = Estudiante -> pantalla de alumnos.
+      const destino = result.payload?.user?.rol_id === 1 ? '/alumnos' : '/'
+      navigate(destino)
+    }
   }
 
   return (
