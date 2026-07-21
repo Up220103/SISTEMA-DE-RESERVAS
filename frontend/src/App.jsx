@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 import Login from './features/auth/Login.jsx'
 import Register from './features/auth/Register.jsx'
 import CalendarView from './features/bookings/CalendarView.jsx'
+import AlumnosDashboard from './features/alumnos/AlumnosDashboard.jsx'
 import { selectIsAuthenticated } from './features/auth/authSlice.js'
 
 function PrivateRoute({ children }) {
@@ -16,6 +17,14 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route
+        path="/alumnos"
+        element={
+          <PrivateRoute>
+            <AlumnosDashboard />
+          </PrivateRoute>
+        }
+      />
       <Route
         path="/"
         element={
