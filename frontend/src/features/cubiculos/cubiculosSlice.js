@@ -24,10 +24,23 @@ const cubiculosSlice = createSlice({
       const cub = state.items.find((c) => c.id === id)
       if (cub) cub.estado = estado
     },
+    agregarCubiculo(state, action) {
+      // Nuevo número consecutivo (evita choques tras eliminar).
+      const siguiente = state.items.reduce((max, c) => Math.max(max, c.id), 0) + 1
+      state.items.push({
+        id: siguiente,
+        nombre: `Cubículo ${siguiente}`,
+        lugares: Number(action.payload?.lugares) || 4,
+        estado: 'disponible',
+      })
+    },
+    eliminarCubiculo(state, action) {
+      state.items = state.items.filter((c) => c.id !== action.payload)
+    },
   },
 })
 
-export const { setEstado } = cubiculosSlice.actions
+export const { setEstado, agregarCubiculo, eliminarCubiculo } = cubiculosSlice.actions
 
 export const selectCubiculos = (state) => state.cubiculos.items
 export const selectEdificio = (state) => state.cubiculos.edificio

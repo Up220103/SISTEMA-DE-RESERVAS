@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 
 import PageHeading from '../../components/ui/PageHeading.jsx'
 import Icon from '../../components/ui/Icon.jsx'
-import { selectCubiculos, selectEdificio, selectResumen, setEstado } from '../../features/cubiculos/cubiculosSlice.js'
+import { selectCubiculos, selectEdificio, selectResumen, setEstado, agregarCubiculo, eliminarCubiculo } from '../../features/cubiculos/cubiculosSlice.js'
 
 // Estilos por estado del cubículo.
 const estilos = {
@@ -41,12 +41,24 @@ export default function CubiculosPage() {
   const edificio = useSelector(selectEdificio)
   const resumen = useSelector(selectResumen)
   const [detalleId, setDetalleId] = useState(null)
+  const [mostrarAgregar, setMostrarAgregar] = useState(false)
+  const [nuevaCap, setNuevaCap] = useState(4)
 
   // Se lee del store para que el modal refleje los cambios de estado al instante.
   const detalle = cubiculos.find((c) => c.id === detalleId) || null
 
   const habilitar = (id) => dispatch(setEstado({ id, estado: 'disponible' }))
   const deshabilitar = (id) => dispatch(setEstado({ id, estado: 'inhabilitado' }))
+
+  const confirmarAgregar = () => {
+    dispatch(agregarCubiculo({ lugares: nuevaCap }))
+    setMostrarAgregar(false)
+    setNuevaCap(4)
+  }
+  const confirmarEliminar = (id) => {
+    dispatch(eliminarCubiculo(id))
+    setDetalleId(null)
+  }
 
   return (
     <div>
@@ -74,6 +86,12 @@ export default function CubiculosPage() {
             <LegendChip color="bg-slate-300" label="Reservado" />
             <LegendChip color="bg-white ring-1 ring-slate-300" label="Disponible" />
             <LegendChip color="bg-orange-400" label="Inhabilitado" />
+            <button
+              onClick={() => setMostrarAgregar(true)}
+              className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              + Agregar cubículo
+            </button>
           </div>
         </div>
 
@@ -168,6 +186,59 @@ export default function CubiculosPage() {
                 className="flex-1 rounded-lg bg-ink py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Cerrar
+              </button>
+            </div>
+
+            {/* Eliminar cubículo (por si se cierra ese cubículo) */}
+            <button
+              onClick={() => confirmarEliminar(detalle.id)}
+              className="mt-3 w-full rounded-lg border border-red-200 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              Eliminar cubículo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal agregar cubículo */}
+      {mostrarAgregar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+          onClick={() => setMostrarAgregar(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-1 text-xl font-black text-slate-900">Agregar cubículo</h3>
+            <p className="mb-5 text-sm text-slate-500">
+              Se creará como <span className="font-semibold">disponible</span>. El número se asigna automáticamente.
+            </p>
+
+            <label className="mb-1.5 block font-mono text-[10px] font-semibold tracking-widest text-slate-400">
+              CAPACIDAD (LUGARES)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="12"
+              value={nuevaCap}
+              onChange={(e) => setNuevaCap(e.target.value)}
+              className="mb-6 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-brand focus:outline-none"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={confirmarAgregar}
+                className="flex-1 rounded-lg bg-brand py-2 text-sm font-semibold text-white transition hover:bg-brand-dark"
+              >
+                Agregar
+              </button>
+              <button
+                onClick={() => setMostrarAgregar(false)}
+                className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancelar
               </button>
             </div>
           </div>

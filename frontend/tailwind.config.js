@@ -12,15 +12,15 @@ export default {
           DEFAULT: '#2f4bf7',  // azul de acento (seleccionado, botones)
           dark: '#2337d6',
         },
+        upa: {
+          blue: '#0033A0',   // primary: logo, botones, seleccion, headers
+          hover: '#00287A',  // hover de acciones primarias
+          light: '#E5EEFF',  // sidebar activo, badges suaves, highlight cards
+        },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
-      },
-      upa: {
-        blue: '#0033A0',   // primary: logo, botones, seleccion, headers
-        hover: '#00287A',   // hover de acciones primarias
-        light: '#E5EEFF',   // sidebar activo, badges suaves, highlight cards
       },
     },
   },

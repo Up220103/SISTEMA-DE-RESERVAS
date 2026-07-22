@@ -1,6 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useDispatch } from 'react-redux'
 
 import Icon from '../ui/Icon.jsx'
+import { logout } from '../../features/auth/authSlice.js'
 import { sessionUser, navItems } from '../../config/session.js'
 
 function SectionLabel({ children }) {
@@ -12,6 +14,14 @@ function SectionLabel({ children }) {
 }
 
 export default function Sidebar() {
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
+
+  const cerrarSesion = () => {
+    dispatch(logout())
+    navigate('/login')
+  }
+
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-6 border-l border-slate-200 bg-white px-6 py-6">
       {/* Sesión activa */}
@@ -66,7 +76,10 @@ export default function Sidebar() {
 
       {/* Pie */}
       <div className="mt-auto space-y-3 border-t border-slate-100 pt-4">
-        <button className="flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-slate-600">
+        <button
+          onClick={cerrarSesion}
+          className="flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-slate-600"
+        >
           <Icon name="logout" className="h-4 w-4" />
           Cerrar sesión
         </button>

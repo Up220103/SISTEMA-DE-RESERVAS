@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 
 import Login from './features/auth/Login.jsx'
 import AdminLayout from './components/layout/AdminLayout.jsx'
@@ -38,7 +39,6 @@ export default function App() {
         <Route path="ayuda" element={<AyudaPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/admin" replace />} />
       <Route path="/register" element={<Register />} />
       <Route
         path="/alumnos"
