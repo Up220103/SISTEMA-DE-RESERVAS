@@ -8,6 +8,11 @@ export const pool = mysql.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'reservas_db',
+  // Forzar utf8mb4 para que los acentos (í, ó, é...) viajen correctamente.
+  charset: 'utf8mb4',
+  // Devuelve DATE/TIME/DATETIME como texto ('YYYY-MM-DD', 'HH:MM:SS')
+  // para evitar desfases de zona horaria al serializar a JSON.
+  dateStrings: true,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

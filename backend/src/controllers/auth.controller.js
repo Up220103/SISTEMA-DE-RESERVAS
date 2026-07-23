@@ -3,7 +3,14 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
-import { findByEmail, findById, createUser } from '../models/user.model.js'
+import {
+  findByEmail,
+  findById,
+  createUser,
+  perfilPorId,
+  actualizarPassword,
+  actualizarPerfil,
+} from '../models/user.model.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secreto_de_desarrollo'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h'
@@ -101,6 +108,84 @@ export async function me(req, res, next) {
     const usuario = await findById(req.user.id)
     if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado.' })
     res.json({ user: usuarioPublico(usuario) })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /api/auth/perfil  (protegida) -> datos para el panel de usuario (sin el hash)
+export async function perfil(req, res, next) {
+  try {
+    const u = await perfilPorId(req.user.id)
+    if (!u) return res.status(404).json({ message: 'Usuario no encontrado.' })
+    res.json({
+      perfil: {
+        id: u.usuario_id,
+        identificador: u.identificador || `USR-${u.usuario_id}`,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        nombre_completo: `${u.nombre} ${u.apellido}`,
+        email: u.email,
+        telefono: u.telefono,
+        rol: u.nombre_rol,
+        rol_id: u.rol_id,
+        estado: u.estado,
+      },
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// PUT /api/auth/perfil  (protegida) -> edita nombre, apellido y teléfono
+export async function editarPerfil(req, res, next) {
+  try {
+    const { nombre, apellido, telefono } = req.body || {}
+    if (!nombre || !apellido) {
+      return res.status(400).json({ message: 'Nombre y apellido son obligatorios.' })
+    }
+    await actualizarPerfil(req.user.id, { nombre, apellido, telefono })
+    const u = await perfilPorId(req.user.id)
+    res.json({
+      perfil: {
+        id: u.usuario_id,
+        identificador: u.identificador || `USR-${u.usuario_id}`,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        nombre_completo: `${u.nombre} ${u.apellido}`,
+        email: u.email,
+        telefono: u.telefono,
+        rol: u.nombre_rol,
+        rol_id: u.rol_id,
+        estado: u.estado,
+      },
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// POST /api/auth/cambiar-password  (protegida)
+// Body: { actual, nueva }. Valida la actual y guarda el nuevo hash bcrypt.
+export async function cambiarPassword(req, res, next) {
+  try {
+    const { actual, nueva } = req.body || {}
+    if (!actual || !nueva) {
+      return res.status(400).json({ message: 'La contraseña actual y la nueva son obligatorias.' })
+    }
+    if (nueva.length < 8) {
+      return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' })
+    }
+
+    const u = await perfilPorId(req.user.id)
+    if (!u) return res.status(404).json({ message: 'Usuario no encontrado.' })
+
+    const coincide = await bcrypt.compare(actual, u.password_hash)
+    if (!coincide) return res.status(401).json({ message: 'La contraseña actual no es correcta.' })
+
+    const nuevoHash = await bcrypt.hash(nueva, BCRYPT_ROUNDS)
+    await actualizarPassword(req.user.id, nuevoHash)
+    res.json({ message: 'Contraseña actualizada correctamente.' })
   } catch (err) {
     next(err)
   }
