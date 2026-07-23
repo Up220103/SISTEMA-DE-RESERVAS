@@ -1,9 +1,26 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api.js'
 
+// --- DEMO SOLO-FRONT (quitar cuando el backend esté conectado) ---
+// Permite probar la app sin backend. Cualquier contraseña sirve.
+// rol_id: 1=Estudiante, 2=Docente, 3=Admin Biblioteca, 4=Admin General.
+const DEMO_USERS = {
+  'alumno@upa.edu.mx':     { usuario_id: 901, nombre: 'Daniela',    apellido: 'Hernández', email: 'alumno@upa.edu.mx',     rol_id: 1 },
+  'profesor@upa.edu.mx':   { usuario_id: 902, nombre: 'Andrés',     apellido: 'Ruiz',      email: 'profesor@upa.edu.mx',   rol_id: 2 },
+  'biblioteca@upa.edu.mx': { usuario_id: 903, nombre: 'Lic. Sofía', apellido: 'Ramos',     email: 'biblioteca@upa.edu.mx', rol_id: 3 },
+}
+
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
+    // DEMO SOLO-FRONT: las cuentas demo entran sin backend (quitar al conectar el back).
+    const demo = DEMO_USERS[email.trim().toLowerCase()]
+    if (demo) {
+      const payload = { token: `demo-${demo.rol_id}`, user: demo }
+      localStorage.setItem('token', payload.token)
+      localStorage.setItem('user', JSON.stringify(demo))
+      return payload
+    }
     try {
       const { data } = await api.post('/auth/login', { email, password })
       localStorage.setItem('token', data.token)
