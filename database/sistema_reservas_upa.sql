@@ -72,7 +72,8 @@ CREATE TABLE usuario (
     CONSTRAINT chk_usuario_estado
         CHECK (estado IN ('Activo','Inactivo')),
     CONSTRAINT chk_usuario_email
-        CHECK (email LIKE '%@upa.edu.mx')
+        -- Permite @upa.edu.mx (docentes/admin) y @alumnos.upa.edu.mx (alumnos)
+        CHECK (email LIKE '%upa.edu.mx')
 ) ENGINE=InnoDB;
 
 -- ---------- DOCENTE ----------
@@ -312,19 +313,19 @@ INSERT INTO rol_tipo_espacio (rol_id, tipo_id) VALUES
     (4, 1), (4, 2), (4, 3), (4, 4);  -- Admin General -> todos
 
 -- ---------- USUARIO ----------
--- password_hash es un ejemplo (hash bcrypt ficticio)
+-- password_hash: bcrypt real de la contraseña 'upa12345' (todas las cuentas de ejemplo).
 INSERT INTO usuario (rol_id, nombre, apellido, email, password_hash, telefono, estado) VALUES
-    (1, 'Ana',    'García',  'ana.garcia@upa.edu.mx',   '$2y$10$ejemploHashEstudiante1', '5551000001', 'Activo'), -- 1 estudiante
-    (1, 'Luis',   'Pérez',   'luis.perez@upa.edu.mx',   '$2y$10$ejemploHashEstudiante2', '5551000002', 'Activo'), -- 2 estudiante
-    (2, 'María',  'López',   'maria.lopez@upa.edu.mx',  '$2y$10$ejemploHashDocente1',    '5551000003', 'Activo'), -- 3 docente
-    (2, 'Jorge',  'Ramírez', 'jorge.ramirez@upa.edu.mx','$2y$10$ejemploHashDocente2',    '5551000004', 'Activo'), -- 4 docente
-    (3, 'Sofía',  'Hernández','sofia.hernandez@upa.edu.mx','$2y$10$ejemploHashAdminBib',  '5551000005', 'Activo'), -- 5 admin biblioteca
-    (4, 'Carlos', 'Méndez',  'carlos.mendez@upa.edu.mx','$2y$10$ejemploHashAdminGral',   '5551000006', 'Activo'); -- 6 admin general
+    (1, 'Ana',    'García',  'up220101@alumnos.upa.edu.mx', '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000001', 'Activo'), -- 1 estudiante
+    (1, 'Luis',   'Pérez',   'up220102@alumnos.upa.edu.mx', '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000002', 'Activo'), -- 2 estudiante
+    (2, 'María',  'López',   'maria.lopez@upa.edu.mx',  '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000003', 'Activo'), -- 3 docente
+    (2, 'Jorge',  'Ramírez', 'jorge.ramirez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000004', 'Activo'), -- 4 docente
+    (3, 'Sofía',  'Hernández','sofia.hernandez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000005', 'Activo'), -- 5 admin biblioteca
+    (4, 'Carlos', 'Méndez',  'carlos.mendez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000006', 'Activo'); -- 6 admin general
 
 -- ---------- DOCENTE ----------
 INSERT INTO docente (usuario_id, num_empleado, departamento) VALUES
-    (3, 'EMP-1001', 'Ciencias Computacionales'), -- docente_id 1 (usuario 3)
-    (4, 'EMP-1002', 'Robótica');                 -- docente_id 2 (usuario 4)
+    (3, 'up190001', 'Ciencias Computacionales'), -- docente_id 1 (usuario 3)
+    (4, 'up190002', 'Robótica');                 -- docente_id 2 (usuario 4)
 
 -- ---------- GRUPO ----------
 INSERT INTO grupo (docente_id, carrera_id, nombre, semestre) VALUES
@@ -333,8 +334,8 @@ INSERT INTO grupo (docente_id, carrera_id, nombre, semestre) VALUES
 
 -- ---------- ESTUDIANTE ----------
 INSERT INTO estudiante (usuario_id, carrera_id, grupo_id, matricula, semestre, direccion, fecha_nacimiento) VALUES
-    (1, 1, 1, '2021030001', 6, 'Calle Falsa 123',  '2003-05-14'),
-    (2, 3, 2, '2022030045', 4, 'Av. Central 456',   '2004-09-30');
+    (1, 1, 1, 'up220101', 6, 'Calle Falsa 123',  '2003-05-14'),
+    (2, 3, 2, 'up220102', 4, 'Av. Central 456',   '2004-09-30');
 
 -- ---------- ESPACIO ----------
 INSERT INTO espacio (tipo_id, edificio_id, nombre, capacidad, estado) VALUES
