@@ -1,3 +1,14 @@
+# =============================================================================
+#  CI/CD · Sistema de Reservas UPA
+#
+#  qa             -> siempre (PR y push). Pruebas de backend y frontend.
+#  build-and-push -> solo push a main. Construye las imagenes y las sube a ACR.
+#  deploy         -> solo push a main. Despliega a Azure y valida /health.
+#
+#  qa dispara tambien en push a main a proposito: en GitHub Actions un job con
+#  `needs:` se SALTA si su dependencia no corrio. Si qa solo corriera en PR, el
+#  push a main dejaria build-and-push y deploy sin ejecutarse nunca.
+# =============================================================================
 name: CI/CD - Sistema de Reservas
 
 on:
@@ -6,10 +17,22 @@ on:
   push:
     branches: [main, develop]
 
+# Ajusta estos valores a los nombres reales que imprime infra/azure-setup.ps1.
+env:
+  RESOURCE_GROUP: rg-sistemadereserva
+  ACR_NAME: acrsistemareservasupa
+  ACR_LOGIN_SERVER: acrsistemareservasupa.azurecr.io
+  BACKEND_WEBAPP: sistema-reservas-api-upa
+  FRONTEND_WEBAPP: sistema-reservas-web-upa
+  IMAGE_BACKEND: sistema-reservas/backend
+  IMAGE_FRONTEND: sistema-reservas/frontend
+
 jobs:
-  # ETAPA 1: Validaciones en tu máquina local
+  # ===========================================================================
+  #  ETAPA 1 · Q/A - corre en el runner self-hosted del equipo
+  # ===========================================================================
   qa:
-    name: Q/A - Validaciones de Código
+    name: Q/A - Pruebas y build
     runs-on: [self-hosted, Windows, QA]
     defaults:
       run:
@@ -19,46 +42,185 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Backend - Instalar dependencias
+      # ---- Backend ----
+      - name: Backend · Instalar dependencias
         working-directory: backend
         run: npm ci
 
-      - name: Backend - Validar sintaxis
+      - name: Backend · Validar sintaxis
         working-directory: backend
         run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
 
-      - name: Frontend - Instalar dependencias
+      - name: Backend · Pruebas
+        working-directory: backend
+        # No necesitan MySQL: validan auth, rutas y reglas de negocio.
+        run: npm test
+
+      # ---- Frontend ----
+      - name: Frontend · Instalar dependencias
         working-directory: frontend
         run: npm ci
 
-      - name: Frontend - Probar compilación (Build)
+      - name: Frontend · Pruebas
+        working-directory: frontend
+        run: npm test
+
+      - name: Frontend · Build de produccion
         working-directory: frontend
         run: npm run build
 
-  # ETAPA 2: Despliegue a Azure (Se ejecuta en la nube de GitHub solo si Q/A pasa)
-  deploy:
-    name: Deploy a Azure App Service
+  # ===========================================================================
+  #  ETAPA 2 · Construir imagenes y subirlas a Azure Container Registry
+  # ===========================================================================
+  build-and-push:
+    name: Build y push a ACR
     needs: qa
     runs-on: ubuntu-latest
-    # Solo se ejecuta cuando se hace merge o push directo a la rama main
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
 
     steps:
-      - name: Checkout del código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # COMENTADO HASTA QUE VINCULEN AZURE:
-      # - name: Iniciar sesión en Azure
-      #   uses: azure/login@v2
-      #   with:
-      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Iniciar sesion en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # - name: Desplegar a Azure App Service
-      #   uses: azure/webapps-deploy@v3
-      #   with:
-      #     app-name: 'tu-app-service-name' # Aquí irá el nombre de su Azure App Service
-      #     slot-name: 'production'
-      #     package: '.'
+      - name: Iniciar sesion en ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
 
-      - name: Simulador de Deploy (Temporal)
-        run: echo "La estructura de Azure está lista. Esperando vinculación de credenciales secretas."
+      - name: Backend · Build y push
+        # Dos tags: run_id para poder hacer rollback exacto, latest por comodidad.
+        run: |
+          docker build \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}:${{ github.run_id }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}:latest \
+            ./backend
+          docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}
+
+      - name: Frontend · Build y push
+        # VITE_API_URL se hornea en el bundle: tiene que ser la URL publica del API.
+        run: |
+          docker build \
+            --build-arg VITE_API_URL="${{ secrets.VITE_API_URL }}" \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_FRONTEND }}:${{ github.run_id }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_FRONTEND }}:latest \
+            ./frontend
+          docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_FRONTEND }}
+
+  # ===========================================================================
+  #  ETAPA 3 · Desplegar a Azure App Service y validar
+  # ===========================================================================
+  deploy:
+    name: Deploy a Azure App Service
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Iniciar sesion en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ---- Backend ----
+      - name: Backend · Aplicar app settings
+        run: |
+          az webapp config appsettings set \
+            --name ${{ env.BACKEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --settings \
+              NODE_ENV=production \
+              WEBSITES_PORT=4000 \
+              DB_HOST="${{ secrets.DB_HOST }}" \
+              DB_PORT=3306 \
+              DB_NAME="${{ secrets.DB_NAME }}" \
+              DB_USER="${{ secrets.DB_USER }}" \
+              DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              DB_SSL=true \
+              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              JWT_EXPIRES_IN=8h \
+              CORS_ORIGIN="${{ secrets.CORS_ORIGIN }}" \
+            --output none
+
+      - name: Backend · Desplegar contenedor
+        # Se despliega por tag inmutable (run_id), no por latest: asi se sabe
+        # exactamente que version quedo corriendo y el rollback es reproducible.
+        run: |
+          az webapp config container set \
+            --name ${{ env.BACKEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --container-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}:${{ github.run_id }} \
+            --container-registry-url https://${{ env.ACR_LOGIN_SERVER }} \
+            --output none
+          az webapp restart \
+            --name ${{ env.BACKEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }}
+
+      # ---- Frontend ----
+      - name: Frontend · Aplicar app settings
+        run: |
+          az webapp config appsettings set \
+            --name ${{ env.FRONTEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --settings WEBSITES_PORT=80 \
+            --output none
+
+      - name: Frontend · Desplegar contenedor
+        run: |
+          az webapp config container set \
+            --name ${{ env.FRONTEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --container-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_FRONTEND }}:${{ github.run_id }} \
+            --container-registry-url https://${{ env.ACR_LOGIN_SERVER }} \
+            --output none
+          az webapp restart \
+            --name ${{ env.FRONTEND_WEBAPP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }}
+
+      # ---- Validacion ----
+      - name: Smoke test · /health del API
+        # App Service tarda en cambiar de contenedor: reintentamos hasta 2 min.
+        run: |
+          URL="https://${{ env.BACKEND_WEBAPP }}.azurewebsites.net/health"
+          for intento in $(seq 1 24); do
+            codigo=$(curl -s -o /tmp/health.json -w "%{http_code}" "$URL" || echo "000")
+            if [ "$codigo" = "200" ]; then
+              echo "API responde OK:"; cat /tmp/health.json; exit 0
+            fi
+            echo "Intento $intento/24 · HTTP $codigo · reintentando en 5s..."
+            sleep 5
+          done
+          echo "::error::El API no respondio 200 en /health tras 2 minutos."
+          exit 1
+
+      - name: Smoke test · frontend
+        run: |
+          URL="https://${{ env.FRONTEND_WEBAPP }}.azurewebsites.net/"
+          for intento in $(seq 1 24); do
+            codigo=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            if [ "$codigo" = "200" ]; then
+              echo "Frontend responde OK."; exit 0
+            fi
+            echo "Intento $intento/24 · HTTP $codigo · reintentando en 5s..."
+            sleep 5
+          done
+          echo "::error::El frontend no respondio 200 tras 2 minutos."
+          exit 1
+
+      - name: Resumen del despliegue
+        run: |
+          {
+            echo "### Despliegue completado"
+            echo ""
+            echo "| Recurso | URL |"
+            echo "|---------|-----|"
+            echo "| Frontend | https://${{ env.FRONTEND_WEBAPP }}.azurewebsites.net |"
+            echo "| API | https://${{ env.BACKEND_WEBAPP }}.azurewebsites.net |"
+            echo "| Health | https://${{ env.BACKEND_WEBAPP }}.azurewebsites.net/health |"
+            echo ""
+            echo "Tag desplegado: \`${{ github.run_id }}\`"
+          } >> $GITHUB_STEP_SUMMARY
