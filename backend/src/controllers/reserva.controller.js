@@ -8,7 +8,7 @@ import {
   bloqueosDeEspacios,
   reservasDeUsuarioEnFecha,
 } from '../models/reserva.model.js'
-import { espaciosPorTipo } from '../models/catalogo.model.js'
+import { espaciosPorTipo, espacioPorId } from '../models/catalogo.model.js'
 import { crearNotificacion } from '../models/notificacion.model.js'
 
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/
@@ -122,14 +122,26 @@ export async function postReserva(req, res, next) {
     }
 
     // Lista de espacios candidatos: uno concreto, o todos los del tipo (auto-asignar).
+    // Regla: un espacio INHABILITADO (estado != 'Disponible') no acepta reservas
+    // hasta que el administrador lo reactive.
     let candidatos = []
     if (espacio_id) {
+      const esp = await espacioPorId(Number(espacio_id))
+      if (!esp) {
+        return res.status(400).json({ message: 'El espacio seleccionado no existe.' })
+      }
+      if (esp.estado !== 'Disponible') {
+        return res.status(409).json({ message: 'Este espacio está inhabilitado y no acepta reservas.' })
+      }
       candidatos = [Number(espacio_id)]
     } else {
       const espacios = await espaciosPorTipo(Number(tipo_id))
-      candidatos = espacios.map((e) => e.espacio_id)
+      // Solo los espacios disponibles pueden autoasignarse.
+      candidatos = espacios.filter((e) => e.estado === 'Disponible').map((e) => e.espacio_id)
       if (!candidatos.length) {
-        return res.status(400).json({ message: 'No hay espacios de ese tipo.' })
+        return res.status(409).json({
+          message: 'No hay espacios disponibles de ese tipo (pueden estar inhabilitados).',
+        })
       }
     }
 

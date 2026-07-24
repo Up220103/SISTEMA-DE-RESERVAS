@@ -13,20 +13,22 @@ const DEMO_USERS = {
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
-    // DEMO SOLO-FRONT: las cuentas demo entran sin backend (quitar al conectar el back).
-    const demo = DEMO_USERS[email.trim().toLowerCase()]
-    if (demo) {
-      const payload = { token: `demo-${demo.rol_id}`, user: demo }
-      localStorage.setItem('token', payload.token)
-      localStorage.setItem('user', JSON.stringify(demo))
-      return payload
-    }
+    // 1) Intentar contra el backend real (usuarios en la BD, p.ej. biblioteca@upa.edu.mx).
     try {
       const { data } = await api.post('/auth/login', { email, password })
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       return data
     } catch (err) {
+      // 2) Fallback DEMO SOLO-FRONT para cuentas que aún no están en la BD
+      //    (alumno@/profesor@). Quitar cuando esos módulos tengan backend.
+      const demo = DEMO_USERS[email.trim().toLowerCase()]
+      if (demo) {
+        const payload = { token: `demo-${demo.rol_id}`, user: demo }
+        localStorage.setItem('token', payload.token)
+        localStorage.setItem('user', JSON.stringify(demo))
+        return payload
+      }
       return rejectWithValue(err.response?.data?.message || 'Error al iniciar sesion')
     }
   },

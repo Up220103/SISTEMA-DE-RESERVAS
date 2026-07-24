@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 
 import PageHeading from '../../components/ui/PageHeading.jsx'
-import { selectSolicitudes, aprobar, rechazar } from '../../features/aprobaciones/aprobacionesSlice.js'
+import {
+  selectSolicitudes, selectAprStatus, fetchAprobaciones, aprobar, rechazar,
+} from '../../features/aprobaciones/aprobacionesSlice.js'
 
 const TABS = [
   { key: 'pendiente', label: 'Pendientes' },
@@ -20,7 +22,12 @@ const textoEstado = { pendiente: 'Pendiente', aprobada: 'Aprobada', rechazada: '
 export default function AprobacionesPage() {
   const dispatch = useDispatch()
   const solicitudes = useSelector(selectSolicitudes)
+  const status = useSelector(selectAprStatus)
   const [tab, setTab] = useState('pendiente')
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchAprobaciones())
+  }, [status, dispatch])
 
   const visibles = solicitudes.filter((s) => s.estado === tab)
 
