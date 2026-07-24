@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 
 import PageHeading from '../../components/ui/PageHeading.jsx'
 import Icon from '../../components/ui/Icon.jsx'
-import { selectCubiculos, selectEdificio, selectResumen, setEstado, agregarCubiculo, eliminarCubiculo } from '../../features/cubiculos/cubiculosSlice.js'
+import {
+  selectCubiculos, selectEdificio, selectResumen, selectCubStatus,
+  fetchCubiculos, setEstado, agregarCubiculo, eliminarCubiculo,
+} from '../../features/cubiculos/cubiculosSlice.js'
 
 // Estilos por estado del cubículo.
 const estilos = {
@@ -40,9 +43,16 @@ export default function CubiculosPage() {
   const cubiculos = useSelector(selectCubiculos)
   const edificio = useSelector(selectEdificio)
   const resumen = useSelector(selectResumen)
+  const status = useSelector(selectCubStatus)
   const [detalleId, setDetalleId] = useState(null)
   const [mostrarAgregar, setMostrarAgregar] = useState(false)
   const [nuevaCap, setNuevaCap] = useState(4)
+  const [errorMsg, setErrorMsg] = useState(null)
+
+  // Carga inicial desde el backend.
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchCubiculos())
+  }, [status, dispatch])
 
   // Se lee del store para que el modal refleje los cambios de estado al instante.
   const detalle = cubiculos.find((c) => c.id === detalleId) || null
@@ -51,13 +61,18 @@ export default function CubiculosPage() {
   const deshabilitar = (id) => dispatch(setEstado({ id, estado: 'inhabilitado' }))
 
   const confirmarAgregar = () => {
-    dispatch(agregarCubiculo({ lugares: nuevaCap }))
+    dispatch(agregarCubiculo({ lugares: Number(nuevaCap) }))
     setMostrarAgregar(false)
     setNuevaCap(4)
   }
-  const confirmarEliminar = (id) => {
-    dispatch(eliminarCubiculo(id))
-    setDetalleId(null)
+  const confirmarEliminar = async (id) => {
+    const res = await dispatch(eliminarCubiculo(id))
+    if (eliminarCubiculo.rejected.match(res)) {
+      // Ej. 409: el cubículo tiene reservas.
+      setErrorMsg(res.payload)
+    } else {
+      setDetalleId(null)
+    }
   }
 
   return (
@@ -101,7 +116,7 @@ export default function CubiculosPage() {
             return (
               <button
                 key={c.id}
-                onClick={() => setDetalleId(c.id)}
+                onClick={() => { setErrorMsg(null); setDetalleId(c.id) }}
                 className={`rounded-xl border p-4 text-left transition hover:ring-2 hover:ring-brand/30 ${s.card}`}
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -188,6 +203,12 @@ export default function CubiculosPage() {
                 Cerrar
               </button>
             </div>
+
+            {errorMsg && (
+              <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                {errorMsg}
+              </p>
+            )}
 
             {/* Eliminar cubículo (por si se cierra ese cubículo) */}
             <button
