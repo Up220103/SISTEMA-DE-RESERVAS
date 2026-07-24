@@ -31,16 +31,16 @@ jobs:
   # ===========================================================================
   qa:
     name: Q/A - Pruebas y build
-    runs-on: ubuntu-latest
+    # Corre en el runner self-hosted local (Windows). Requiere tener la
+    # terminal del runner encendida (.\run.cmd) para que tome el job.
+    runs-on: [self-hosted, Windows, QA]
+    defaults:
+      run:
+        shell: powershell
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Preparar Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       # ---- Backend ----
       - name: Backend · Instalar dependencias
@@ -49,7 +49,7 @@ jobs:
 
       - name: Backend · Validar sintaxis
         working-directory: backend
-        run: find src -name '*.js' -exec node --check {} +
+        run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
 
       - name: Backend · Pruebas
         working-directory: backend
@@ -64,7 +64,7 @@ jobs:
         working-directory: frontend
         run: npm test
 
-      - name: Frontend · Build de produccion
+      - name: Frontend · Build de producción
         working-directory: frontend
         run: npm run build
 
