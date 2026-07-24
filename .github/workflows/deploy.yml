@@ -100,8 +100,10 @@ jobs:
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}
 
       - name: Aplicar configuracion del App Service
-        # WEBSITES_PORT=80 -> nginx. El resto de la config (BD interna) ya viene
-        # horneada en la imagen; aqui solo inyectamos el secreto de los JWT.
+        # WEBSITES_PORT=80 -> nginx. Fijamos tambien DB_* a la BD INTERNA del
+        # contenedor: si quedaron app settings viejos apuntando a una MySQL que
+        # ya no existe, en App Service esos sobreescriben la ENV de la imagen y
+        # romperian la conexion. Aqui los forzamos a los valores internos.
         run: |
           az webapp config appsettings set \
             --name ${{ env.WEBAPP }} \
@@ -111,6 +113,13 @@ jobs:
               WEBSITES_CONTAINER_START_TIME_LIMIT=600 \
               NODE_ENV=production \
               JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              DB_HOST=127.0.0.1 \
+              DB_PORT=3306 \
+              DB_USER=root \
+              DB_PASSWORD=root \
+              DB_NAME=reservas_upa \
+              DB_SSL=false \
+              CORS_ORIGIN="*" \
             --output none
 
       - name: Desplegar el contenedor
