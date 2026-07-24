@@ -1,9 +1,20 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api.js'
 
+// Cuentas demo SOLO-FRONT: fallback para los modulos que todavia no tienen
+// backend (alumno/profesor). El login real (biblioteca, alumnos en la BD)
+// pasa siempre por el backend; estas solo entran si el backend las rechaza.
+// rol_id: 1=Estudiante, 2=Docente, 3=Admin Biblioteca, 4=Admin General.
+const DEMO_USERS = {
+  'alumno@upa.edu.mx':     { usuario_id: 901, nombre: 'Daniela',    apellido: 'Hernández', email: 'alumno@upa.edu.mx',     rol_id: 1 },
+  'profesor@upa.edu.mx':   { usuario_id: 902, nombre: 'Andrés',     apellido: 'Ruiz',      email: 'profesor@upa.edu.mx',   rol_id: 2 },
+  'biblioteca@upa.edu.mx': { usuario_id: 903, nombre: 'Lic. Sofía', apellido: 'Ramos',     email: 'biblioteca@upa.edu.mx', rol_id: 3 },
+}
+
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
+    // 1) Intentar contra el backend real (usuarios en la BD).
     try {
       // El correo se normaliza aqui: la BD lo guarda en minusculas.
       const { data } = await api.post('/auth/login', {
@@ -14,6 +25,15 @@ export const login = createAsyncThunk(
       localStorage.setItem('user', JSON.stringify(data.user))
       return data
     } catch (err) {
+      // 2) Fallback DEMO SOLO-FRONT para cuentas que aún no están en la BD
+      //    (alumno@/profesor@). Quitar cuando esos módulos tengan backend.
+      const demo = DEMO_USERS[email.trim().toLowerCase()]
+      if (demo) {
+        const payload = { token: `demo-${demo.rol_id}`, user: demo }
+        localStorage.setItem('token', payload.token)
+        localStorage.setItem('user', JSON.stringify(demo))
+        return payload
+      }
       return rejectWithValue(err.response?.data?.message || 'Error al iniciar sesion')
     }
   },

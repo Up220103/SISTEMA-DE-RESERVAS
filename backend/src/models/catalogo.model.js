@@ -15,6 +15,16 @@ export async function tiposPorRol(rolId) {
   return rows
 }
 
+// Un espacio concreto por id (para validar estado antes de reservar).
+export async function espacioPorId(espacioId) {
+  const [rows] = await query(
+    `SELECT espacio_id, nombre, capacidad, estado, tipo_id, edificio_id
+       FROM espacio WHERE espacio_id = ? LIMIT 1`,
+    [espacioId],
+  )
+  return rows[0] || null
+}
+
 // Espacios concretos de un tipo, con su edificio. Ordenados por edificio y nombre.
 export async function espaciosPorTipo(tipoId) {
   const [rows] = await query(

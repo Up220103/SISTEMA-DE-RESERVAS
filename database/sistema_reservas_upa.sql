@@ -10,6 +10,9 @@ CREATE DATABASE reservas_upa
     COLLATE utf8mb4_unicode_ci;
 USE reservas_upa;
 
+-- Asegura que los acentos (í, ó, é...) se carguen sin doble codificación.
+SET NAMES utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- =============================================================================
@@ -295,7 +298,8 @@ INSERT INTO estado_reserva (nombre_estado) VALUES
     ('Pendiente'),   -- 1
     ('Confirmada'),  -- 2
     ('Completada'),  -- 3
-    ('Cancelada');   -- 4
+    ('Cancelada'),   -- 4
+    ('Rechazada');   -- 5  (reserva de cubículo rechazada por Admin Biblioteca)
 
 -- ---------- EDIFICIO_TIPO_ESPACIO (M:N) ----------
 INSERT INTO edificio_tipo_espacio (edificio_id, tipo_id, cantidad_total) VALUES
@@ -319,7 +323,7 @@ INSERT INTO usuario (rol_id, nombre, apellido, email, password_hash, telefono, e
     (1, 'Luis',   'Pérez',   'up220102@alumnos.upa.edu.mx', '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000002', 'Activo'), -- 2 estudiante
     (2, 'María',  'López',   'maria.lopez@upa.edu.mx',  '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000003', 'Activo'), -- 3 docente
     (2, 'Jorge',  'Ramírez', 'jorge.ramirez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000004', 'Activo'), -- 4 docente
-    (3, 'Sofía',  'Hernández','sofia.hernandez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000005', 'Activo'), -- 5 admin biblioteca
+    (3, 'Sofía',  'Hernández','biblioteca@upa.edu.mx','$2a$10$1Tfft57kejFf.ta5Po32DOScI1Q9CF85xIiqbEyk4Ir.ZvQaBVBdy', '5551000005', 'Activo'), -- 5 admin biblioteca (login: biblioteca123)
     (4, 'Carlos', 'Méndez',  'carlos.mendez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000006', 'Activo'); -- 6 admin general
 
 -- ---------- DOCENTE ----------
@@ -339,9 +343,9 @@ INSERT INTO estudiante (usuario_id, carrera_id, grupo_id, matricula, semestre, d
 
 -- ---------- ESPACIO ----------
 INSERT INTO espacio (tipo_id, edificio_id, nombre, capacidad, estado) VALUES
-    (1, 1, 'E5-101',            6,   'Disponible'),  -- 1 cubículo
-    (1, 1, 'E5-102',            6,   'Disponible'),  -- 2 cubículo
-    (1, 1, 'E5-204',            4,   'Disponible'),  -- 3 cubículo
+    (1, 1, 'Cubículo 1',        6,   'Disponible'),  -- 1 cubículo
+    (1, 1, 'Cubículo 2',        6,   'Disponible'),  -- 2 cubículo
+    (1, 1, 'Cubículo 3',        4,   'Disponible'),  -- 3 cubículo
     (2, 2, 'Auditorio Principal',200,'Disponible'),  -- 4 auditorio
     (3, 2, 'EA-Lab1',           30,  'Disponible'),  -- 5 laboratorio
     (3, 3, 'EB-Lab3',           25,  'Disponible'),  -- 6 laboratorio
@@ -351,7 +355,11 @@ INSERT INTO espacio (tipo_id, edificio_id, nombre, capacidad, estado) VALUES
 INSERT INTO reserva (usuario_id, espacio_id, estado_id, titulo, fecha_reserva, hora_inicio, hora_fin, observaciones) VALUES
     (1, 1, 2, 'Estudio',              '2026-07-13', '09:00:00', '11:00:00', 'Sesión de estudio individual'), -- estudiante en cubículo
     (3, 4, 1, 'Cálculo I',            '2026-07-14', '12:00:00', '14:00:00', 'Clase magistral'),             -- docente en auditorio
-    (4, 6, 2, 'Reunión de robótica',  '2026-07-15', '16:00:00', '18:00:00', 'Prueba de prototipos');       -- docente en laboratorio
+    (4, 6, 2, 'Reunión de robótica',  '2026-07-15', '16:00:00', '18:00:00', 'Prueba de prototipos'),       -- docente en laboratorio
+    -- Reservas de cubículos PENDIENTES (para el panel de Aprobaciones del Admin Biblioteca)
+    (1, 2, 1, 'Reserva de cubículo',  '2026-07-27', '09:00:00', '11:00:00', 'Estudio grupal'),             -- estudiante -> Cubículo 2
+    (3, 3, 1, 'Reserva de cubículo',  '2026-07-28', '10:00:00', '12:00:00', 'Asesoría de proyecto'),       -- docente -> Cubículo 3
+    (2, 1, 1, 'Reserva de cubículo',  '2026-07-29', '13:00:00', '15:00:00', 'Proyecto integrador');        -- estudiante -> Cubículo 1
 
 -- ---------- BLOQUEO_ESPACIO ----------
 INSERT INTO bloqueo_espacio (espacio_id, admin_id, fecha_inicio, fecha_fin, motivo) VALUES

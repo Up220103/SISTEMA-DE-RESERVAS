@@ -35,7 +35,12 @@ function usuarioPublico(u) {
 }
 
 function firmarToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+  // rol_id viaja en el token para poder autorizar por rol sin ir a la BD.
+  return jwt.sign(
+    { id: user.id, email: user.email, rol_id: user.rol_id },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN },
+  )
 }
 
 // POST /api/auth/register

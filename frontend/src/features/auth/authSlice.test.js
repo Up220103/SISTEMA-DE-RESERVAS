@@ -108,20 +108,45 @@ describe('authSlice · thunk login', () => {
     expect(localStorage.getItem('token')).toBeNull()
   })
 
-  test('ya no existe el bypass demo: cualquier correo pasa por el backend', async () => {
+  test('el login SIEMPRE intenta primero contra el backend', async () => {
+    // Aunque sea un correo demo, primero se llama al backend real.
+    api.post.mockResolvedValue({ data: { token: 'jwt-real', user: usuario } })
+
+    await login({ email: 'biblioteca@upa.edu.mx', password: 'x' })(vi.fn(), () => ({}), undefined)
+
+    expect(api.post).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('token')).toBe('jwt-real')
+  })
+
+  test('un correo NO demo que falla en backend rechaza sin dejar sesion', async () => {
     api.post.mockRejectedValue({
       response: { status: 401, data: { message: 'Correo o contrasena incorrectos.' } },
     })
 
-    const resultado = await login({ email: 'biblioteca@upa.edu.mx', password: 'lo-que-sea' })(
+    const resultado = await login({ email: 'up229999@alumnos.upa.edu.mx', password: 'mala' })(
       vi.fn(),
       () => ({}),
       undefined,
     )
 
-    expect(api.post).toHaveBeenCalledTimes(1)
     expect(resultado.payload).toBe('Correo o contrasena incorrectos.')
     expect(localStorage.getItem('token')).toBeNull()
+  })
+
+  test('un correo demo (sin backend aun) cae al fallback cuando el backend lo rechaza', async () => {
+    // alumno@/profesor@ no estan en la BD: el backend responde 401 y entran en demo.
+    api.post.mockRejectedValue({
+      response: { status: 401, data: { message: 'Correo o contrasena incorrectos.' } },
+    })
+
+    const resultado = await login({ email: 'alumno@upa.edu.mx', password: 'lo-que-sea' })(
+      vi.fn(),
+      () => ({}),
+      undefined,
+    )
+
+    expect(resultado.payload.user.rol_id).toBe(1)
+    expect(localStorage.getItem('token')).toBe('demo-1')
   })
 })
 

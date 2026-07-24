@@ -4,6 +4,7 @@ import authReducer from '../features/auth/authSlice.js'
 import bookingReducer from '../features/bookings/bookingSlice.js'
 import cubiculosReducer from '../features/cubiculos/cubiculosSlice.js'
 import aprobacionesReducer from '../features/aprobaciones/aprobacionesSlice.js'
+import calendarioReducer from '../features/calendario/calendarioSlice.js'
 import reservasReducer from '../features/reservas/reservaSlice.js'
 
 export const store = configureStore({
@@ -12,6 +13,7 @@ export const store = configureStore({
     bookings: bookingReducer,
     cubiculos: cubiculosReducer,
     aprobaciones: aprobacionesReducer,
+    calendario: calendarioReducer,
     reservas: reservasReducer,
   },
 })
