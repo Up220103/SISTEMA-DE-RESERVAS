@@ -1,0 +1,17 @@
+# Contexto de build de la imagen "todo en uno" (Dockerfile de la raíz).
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+**/npm-debug.log*
+.git
+.github
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+.claude
+.vscode
+.idea
+.env.backup-antes-de-docker

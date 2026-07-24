@@ -1,8 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api.js'
 
-// --- DEMO SOLO-FRONT (quitar cuando el backend esté conectado) ---
-// Permite probar la app sin backend. Cualquier contraseña sirve.
+// Cuentas demo SOLO-FRONT: fallback para los modulos que todavia no tienen
+// backend (alumno/profesor). El login real (biblioteca, alumnos en la BD)
+// pasa siempre por el backend; estas solo entran si el backend las rechaza.
 // rol_id: 1=Estudiante, 2=Docente, 3=Admin Biblioteca, 4=Admin General.
 const DEMO_USERS = {
   'alumno@upa.edu.mx':     { usuario_id: 901, nombre: 'Daniela',    apellido: 'Hernández', email: 'alumno@upa.edu.mx',     rol_id: 1 },
@@ -13,9 +14,13 @@ const DEMO_USERS = {
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
-    // 1) Intentar contra el backend real (usuarios en la BD, p.ej. biblioteca@upa.edu.mx).
+    // 1) Intentar contra el backend real (usuarios en la BD).
     try {
-      const { data } = await api.post('/auth/login', { email, password })
+      // El correo se normaliza aqui: la BD lo guarda en minusculas.
+      const { data } = await api.post('/auth/login', {
+        email: String(email).trim().toLowerCase(),
+        password,
+      })
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       return data
@@ -38,7 +43,12 @@ export const register = createAsyncThunk(
   'auth/register',
   async ({ nombre, apellido, email, password }, { rejectWithValue }) => {
     try {
-      const { data } = await api.post('/auth/register', { nombre, apellido, email, password })
+      const { data } = await api.post('/auth/register', {
+        nombre,
+        apellido,
+        email: String(email).trim().toLowerCase(),
+        password,
+      })
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       return data
