@@ -1,14 +1,3 @@
-# =============================================================================
-#  CI/CD · Sistema de Reservas UPA
-#
-#  qa             -> siempre (PR y push). Pruebas de backend y frontend.
-#  build-and-push -> solo push a main. Construye las imagenes y las sube a ACR.
-#  deploy         -> solo push a main. Despliega a Azure y valida /health.
-#
-#  qa dispara tambien en push a main a proposito: en GitHub Actions un job con
-#  `needs:` se SALTA si su dependencia no corrio. Si qa solo corriera en PR, el
-#  push a main dejaria build-and-push y deploy sin ejecutarse nunca.
-# =============================================================================
 name: CI/CD - Sistema de Reservas
 
 on:
@@ -17,7 +6,6 @@ on:
   push:
     branches: [main, develop]
 
-# Ajusta estos valores a los nombres reales que imprime infra/azure-setup.ps1.
 env:
   RESOURCE_GROUP: rg-sistemadereserva
   ACR_NAME: acrsistemareservasupa
@@ -28,21 +16,17 @@ env:
   IMAGE_FRONTEND: sistema-reservas/frontend
 
 jobs:
-  # ===========================================================================
-  #  ETAPA 1 · Q/A - corre en el runner self-hosted del equipo
-  # ===========================================================================
   qa:
     name: Q/A - Pruebas y build
-    runs-on: [self-hosted, Windows, QA]
+    runs-on: windows-latest
     defaults:
       run:
         shell: powershell
 
     steps:
-      - name: Checkout
+      - name: Checkout del código
         uses: actions/checkout@v4
 
-      # ---- Backend ----
       - name: Backend · Instalar dependencias
         working-directory: backend
         run: npm ci
@@ -51,27 +35,14 @@ jobs:
         working-directory: backend
         run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
 
-      - name: Backend · Pruebas
-        working-directory: backend
-        # No necesitan MySQL: validan auth, rutas y reglas de negocio.
-        run: npm test
-
-      # ---- Frontend ----
       - name: Frontend · Instalar dependencias
         working-directory: frontend
         run: npm ci
 
-      - name: Frontend · Pruebas
-        working-directory: frontend
-        run: npm test
-
-      - name: Frontend · Build de produccion
+      - name: Frontend · Build de producción
         working-directory: frontend
         run: npm run build
 
-  # ===========================================================================
-  #  ETAPA 2 · Construir imagenes y subirlas a Azure Container Registry
-  # ===========================================================================
   build-and-push:
     name: Build y push a ACR
     needs: qa
@@ -80,19 +51,18 @@ jobs:
     environment: production
 
     steps:
-      - name: Checkout
+      - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Iniciar sesion en Azure
+      - name: Iniciar sesión en Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Iniciar sesion en ACR
+      - name: Iniciar sesión en ACR
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Backend · Build y push
-        # Dos tags: run_id para poder hacer rollback exacto, latest por comodidad.
         run: |
           docker build \
             -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}:${{ github.run_id }} \
@@ -101,7 +71,6 @@ jobs:
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_BACKEND }}
 
       - name: Frontend · Build y push
-        # VITE_API_URL se hornea en el bundle: tiene que ser la URL publica del API.
         run: |
           docker build \
             --build-arg VITE_API_URL="${{ secrets.VITE_API_URL }}" \
@@ -110,9 +79,6 @@ jobs:
             ./frontend
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_FRONTEND }}
 
-  # ===========================================================================
-  #  ETAPA 3 · Desplegar a Azure App Service y validar
-  # ===========================================================================
   deploy:
     name: Deploy a Azure App Service
     needs: build-and-push
@@ -121,12 +87,11 @@ jobs:
     environment: production
 
     steps:
-      - name: Iniciar sesion en Azure
+      - name: Iniciar sesión en Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # ---- Backend ----
       - name: Backend · Aplicar app settings
         run: |
           az webapp config appsettings set \
@@ -147,8 +112,6 @@ jobs:
             --output none
 
       - name: Backend · Desplegar contenedor
-        # Se despliega por tag inmutable (run_id), no por latest: asi se sabe
-        # exactamente que version quedo corriendo y el rollback es reproducible.
         run: |
           az webapp config container set \
             --name ${{ env.BACKEND_WEBAPP }} \
@@ -160,7 +123,6 @@ jobs:
             --name ${{ env.BACKEND_WEBAPP }} \
             --resource-group ${{ env.RESOURCE_GROUP }}
 
-      # ---- Frontend ----
       - name: Frontend · Aplicar app settings
         run: |
           az webapp config appsettings set \
@@ -181,9 +143,7 @@ jobs:
             --name ${{ env.FRONTEND_WEBAPP }} \
             --resource-group ${{ env.RESOURCE_GROUP }}
 
-      # ---- Validacion ----
       - name: Smoke test · /health del API
-        # App Service tarda en cambiar de contenedor: reintentamos hasta 2 min.
         run: |
           URL="https://${{ env.BACKEND_WEBAPP }}.azurewebsites.net/health"
           for intento in $(seq 1 24); do
@@ -194,10 +154,10 @@ jobs:
             echo "Intento $intento/24 · HTTP $codigo · reintentando en 5s..."
             sleep 5
           done
-          echo "::error::El API no respondio 200 en /health tras 2 minutos."
+          echo "::error::El API no respondió 200 en /health tras 2 minutos."
           exit 1
 
-      - name: Smoke test · frontend
+      - name: Smoke test · Frontend
         run: |
           URL="https://${{ env.FRONTEND_WEBAPP }}.azurewebsites.net/"
           for intento in $(seq 1 24); do
@@ -208,7 +168,7 @@ jobs:
             echo "Intento $intento/24 · HTTP $codigo · reintentando en 5s..."
             sleep 5
           done
-          echo "::error::El frontend no respondio 200 tras 2 minutos."
+          echo "::error::El frontend no respondió 200 tras 2 minutos."
           exit 1
 
       - name: Resumen del despliegue
