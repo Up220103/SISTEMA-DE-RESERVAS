@@ -233,6 +233,7 @@ export default function AlumnosDashboard() {
                   Siguiente →
                 </button>
               </div>
+              
             </section>
           )}
 
