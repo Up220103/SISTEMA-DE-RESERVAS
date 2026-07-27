@@ -1,13 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api.js'
 
-// --- DEMO SOLO-FRONT (quitar cuando el backend esté conectado) ---
-// Permite probar la app sin backend. Cualquier contraseña sirve.
+// --- DEMO SOLO-FRONT (quitar cuando esos módulos tengan backend) ---
+// Solo para cuentas que AÚN NO existen en la BD (alumno/profesor son front-only).
+// OJO: biblioteca@upa.edu.mx NO va aquí: ya existe en la BD, así que si el backend
+// falla debe verse el error, no entrar con una sesión falsa que deja el panel vacío.
 // rol_id: 1=Estudiante, 2=Docente, 3=Admin Biblioteca, 4=Admin General.
 const DEMO_USERS = {
-  'alumno@upa.edu.mx':     { usuario_id: 901, nombre: 'Daniela',    apellido: 'Hernández', email: 'alumno@upa.edu.mx',     rol_id: 1 },
-  'profesor@upa.edu.mx':   { usuario_id: 902, nombre: 'Andrés',     apellido: 'Ruiz',      email: 'profesor@upa.edu.mx',   rol_id: 2 },
-  'biblioteca@upa.edu.mx': { usuario_id: 903, nombre: 'Lic. Sofía', apellido: 'Ramos',     email: 'biblioteca@upa.edu.mx', rol_id: 3 },
+  'alumno@upa.edu.mx':   { usuario_id: 901, nombre: 'Daniela', apellido: 'Hernández', email: 'alumno@upa.edu.mx',   rol_id: 1 },
+  'profesor@upa.edu.mx': { usuario_id: 902, nombre: 'Andrés',  apellido: 'Ruiz',      email: 'profesor@upa.edu.mx', rol_id: 2 },
 }
 
 export const login = createAsyncThunk(

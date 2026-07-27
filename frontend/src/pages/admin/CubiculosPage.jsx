@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import PageHeading from '../../components/ui/PageHeading.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import {
-  selectCubiculos, selectEdificio, selectResumen, selectCubStatus,
+  selectCubiculos, selectEdificio, selectResumen, selectCubStatus, selectCubError,
   fetchCubiculos, setEstado, agregarCubiculo, eliminarCubiculo,
 } from '../../features/cubiculos/cubiculosSlice.js'
 
@@ -44,10 +44,12 @@ export default function CubiculosPage() {
   const edificio = useSelector(selectEdificio)
   const resumen = useSelector(selectResumen)
   const status = useSelector(selectCubStatus)
+  const errorCarga = useSelector(selectCubError)
   const [detalleId, setDetalleId] = useState(null)
   const [mostrarAgregar, setMostrarAgregar] = useState(false)
   const [nuevaCap, setNuevaCap] = useState(4)
   const [errorMsg, setErrorMsg] = useState(null)
+  const [errorAgregar, setErrorAgregar] = useState(null)
 
   // Carga inicial desde el backend.
   useEffect(() => {
@@ -60,9 +62,14 @@ export default function CubiculosPage() {
   const habilitar = (id) => dispatch(setEstado({ id, estado: 'disponible' }))
   const deshabilitar = (id) => dispatch(setEstado({ id, estado: 'inhabilitado' }))
 
-  const confirmarAgregar = () => {
-    dispatch(agregarCubiculo({ lugares: Number(nuevaCap) }))
+  const confirmarAgregar = async () => {
+    const res = await dispatch(agregarCubiculo({ lugares: Number(nuevaCap) }))
+    if (agregarCubiculo.rejected.match(res)) {
+      setErrorAgregar(res.payload)
+      return
+    }
     setMostrarAgregar(false)
+    setErrorAgregar(null)
     setNuevaCap(4)
   }
   const confirmarEliminar = async (id) => {
@@ -109,6 +116,30 @@ export default function CubiculosPage() {
             </button>
           </div>
         </div>
+
+        {/* Estados de carga / error / vacío: nunca mostrar ceros sin explicación. */}
+        {status === 'loading' && (
+          <p className="py-10 text-center text-sm text-slate-400">Cargando cubículos…</p>
+        )}
+
+        {status === 'failed' && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+            <p className="text-sm font-semibold text-red-700">No se pudieron cargar los cubículos</p>
+            <p className="mt-1 text-sm text-red-600">{errorCarga}</p>
+            <button
+              onClick={() => dispatch(fetchCubiculos())}
+              className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {status === 'succeeded' && cubiculos.length === 0 && (
+          <p className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
+            No hay cubículos registrados. Usa «+ Agregar cubículo» para crear el primero.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {cubiculos.map((c) => {
@@ -247,6 +278,12 @@ export default function CubiculosPage() {
               onChange={(e) => setNuevaCap(e.target.value)}
               className="mb-6 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-brand focus:outline-none"
             />
+
+            {errorAgregar && (
+              <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                {errorAgregar}
+              </p>
+            )}
 
             <div className="flex gap-3">
               <button
