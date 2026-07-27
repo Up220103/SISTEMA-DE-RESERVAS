@@ -21,7 +21,6 @@ env:
   RESOURCE_GROUP: rg-sistemadereserva
   ACR_NAME: acrsistemareservasupa
   ACR_LOGIN_SERVER: acrsistemareservasupa.azurecr.io
-  # App Service donde vive el contenedor todo-en-uno.
   WEBAPP: sistema-reservas-api-upa
   IMAGE: sistema-reservas/app
 
@@ -31,16 +30,16 @@ jobs:
   # ===========================================================================
   qa:
     name: Q/A - Pruebas y build
-    # Corre en el runner self-hosted local (Windows). Requiere tener la
-    # terminal del runner encendida (.\run.cmd) para que tome el job.
-    runs-on: [self-hosted, Windows, QA]
-    defaults:
-      run:
-        shell: powershell
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Preparar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       # ---- Backend ----
       - name: Backend · Instalar dependencias
@@ -49,7 +48,7 @@ jobs:
 
       - name: Backend · Validar sintaxis
         working-directory: backend
-        run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
+        run: find src -name '*.js' -exec node --check {} +
 
       - name: Backend · Pruebas
         working-directory: backend
@@ -64,7 +63,7 @@ jobs:
         working-directory: frontend
         run: npm test
 
-      - name: Frontend · Build de producción
+      - name: Frontend · Build de produccion
         working-directory: frontend
         run: npm run build
 
@@ -75,7 +74,7 @@ jobs:
     name: Deploy a Azure App Service
     needs: qa
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     environment: production
 
     steps:
@@ -100,10 +99,8 @@ jobs:
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}
 
       - name: Aplicar configuracion del App Service
-        # WEBSITES_PORT=80 -> nginx. Fijamos tambien DB_* a la BD INTERNA del
-        # contenedor: si quedaron app settings viejos apuntando a una MySQL que
-        # ya no existe, en App Service esos sobreescriben la ENV de la imagen y
-        # romperian la conexion. Aqui los forzamos a los valores internos.
+        # WEBSITES_PORT=80 -> nginx. El resto de la config (BD interna) ya viene
+        # horneada en la imagen; aqui solo inyectamos el secreto de los JWT.
         run: |
           az webapp config appsettings set \
             --name ${{ env.WEBAPP }} \
@@ -113,13 +110,6 @@ jobs:
               WEBSITES_CONTAINER_START_TIME_LIMIT=600 \
               NODE_ENV=production \
               JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              DB_HOST=127.0.0.1 \
-              DB_PORT=3306 \
-              DB_USER=root \
-              DB_PASSWORD=root \
-              DB_NAME=reservas_upa \
-              DB_SSL=false \
-              CORS_ORIGIN="*" \
             --output none
 
       - name: Desplegar el contenedor
