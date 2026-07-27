@@ -1,13 +1,13 @@
 # =============================================================================
-#  Docker Compose · Base de datos "sistema_reservas_upa"
-#  Levanta MySQL 8 y ejecuta automáticamente backend/db/sistema_reservas_upa.sql
-#  (el script crea la base de datos "reservas_upa" con tablas, datos y triggers)
+#  Docker Compose · SOLO la base de datos "reservas_upa"
+#  Util si quieres correr backend y frontend con `npm run dev` fuera de Docker.
+#  Para levantar el sistema completo usa el docker-compose.yml de la raiz.
 #
-#  Uso:
-#    docker compose -f docker-compose.db.yml up -d
-#    docker compose -f docker-compose.db.yml logs -f mysql
-#    docker compose -f docker-compose.db.yml down          (conserva los datos)
-#    docker compose -f docker-compose.db.yml down -v       (borra los datos) :)
+#  Uso (desde esta carpeta):
+#    docker compose up -d
+#    docker compose logs -f mysql-upa
+#    docker compose down        (conserva los datos)
+#    docker compose down -v     (borra los datos y vuelve a correr el .sql)
 # =============================================================================
 
 services:
@@ -21,14 +21,22 @@ services:
       - "${DB_PORT:-3306}:3306"
     volumes:
       - mysql_upa_data:/var/lib/mysql
-      # El script se ejecuta solo la primera vez que el volumen está vacío
-      - ./backend/db/sistema_reservas_upa.sql:/docker-entrypoint-initdb.d/01-sistema_reservas_upa.sql:ro
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      # El script esta junto a este compose. Solo se ejecuta la primera vez,
+      # cuando el volumen esta vacio.
+      - ./sistema_reservas_upa.sql:/docker-entrypoint-initdb.d/01-sistema_reservas_upa.sql:ro
+    # skip-character-set-client-handshake fuerza utf8mb4 aunque el cliente pida
+    # otra cosa. Sin esto, el cliente `mysql` del entrypoint lee el .sql como
+    # latin1 y los acentos quedan doble-codificados ("García" -> "GarcÃ­a").
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-character-set-client-handshake
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 30s
 
 volumes:
   mysql_upa_data:

@@ -14,11 +14,21 @@ import Register from './features/auth/Register.jsx'
 import CalendarView from './features/bookings/CalendarView.jsx'
 import AlumnosDashboard from './features/alumnos/AlumnosDashboard.jsx'
 import ProfesorDashboard from './features/profesor/ProfesorDashboard.jsx'
-import { selectIsAuthenticated } from './features/auth/authSlice.js'
+import { selectIsAuthenticated, selectUser } from './features/auth/authSlice.js'
 
 function PrivateRoute({ children }) {
   const isAuth = useSelector(selectIsAuthenticated)
   return isAuth ? children : <Navigate to="/login" replace />
+}
+
+// Restringe una ruta a ciertos rol_id (1=Estudiante, 2=Docente,
+// 3=Admin Biblioteca, 4=Admin General). Sin sesion -> login;
+// con sesion pero sin permiso -> raiz.
+function RoleRoute({ roles, children }) {
+  const isAuth = useSelector(selectIsAuthenticated)
+  const user = useSelector(selectUser)
+  if (!isAuth) return <Navigate to="/login" replace />
+  return roles.includes(user?.rol_id) ? children : <Navigate to="/" replace />
 }
 
 export default function App() {
@@ -26,9 +36,15 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      {/* Panel Admin Biblioteca. Front-only por ahora: sin gate de auth.
-          Al conectar el backend, envolver en <PrivateRoute>. */}
-      <Route path="/admin" element={<AdminLayout />}>
+      {/* Panel Admin Biblioteca: solo rol 3 (Admin Biblioteca) y 4 (Admin General). */}
+      <Route
+        path="/admin"
+        element={
+          <RoleRoute roles={[3, 4]}>
+            <AdminLayout />
+          </RoleRoute>
+        }
+      >
         <Route index element={<Navigate to="calendario" replace />} />
         <Route path="calendario" element={<CalendarioPage />} />
         <Route path="cubiculos" element={<CubiculosPage />} />

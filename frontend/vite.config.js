@@ -8,4 +8,11 @@ export default defineConfig({
     port: 5173,
     watch: { usePolling: true },
   },
+  test: {
+    environment: 'jsdom',   // necesitamos document y localStorage
+    globals: true,
+    setupFiles: './src/test/setup.js',
+    css: false,
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
+  },
 })

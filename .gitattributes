@@ -1,0 +1,4 @@
+# Los scripts de shell DEBEN tener saltos de línea LF: si git los convierte a
+# CRLF en Windows, el shebang se rompe y el contenedor no arranca.
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf

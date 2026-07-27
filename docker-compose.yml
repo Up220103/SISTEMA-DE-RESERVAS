@@ -1,0 +1,83 @@
+# =============================================================================
+#  Entorno local completo: MySQL + Backend + Frontend
+#
+#    cp .env.example .env      # rellena los valores
+#    docker compose up --build
+#
+#  Frontend  -> http://localhost:5173
+#  Backend   -> http://localhost:4000/health
+#  MySQL     -> localhost:3306  (usuario root / $DB_ROOT_PASSWORD)
+#
+#  Para borrar los datos y volver a ejecutar el .sql de init:
+#    docker compose down -v
+# =============================================================================
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: reservas-upa-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_upa_data:/var/lib/mysql
+      # El script crea la BD `reservas_upa` con tablas, triggers y datos.
+      # Solo se ejecuta la primera vez, cuando el volumen esta vacio.
+      - ./database/sistema_reservas_upa.sql:/docker-entrypoint-initdb.d/01-sistema_reservas_upa.sql:ro
+    # skip-character-set-client-handshake fuerza utf8mb4 aunque el cliente pida
+    # otra cosa. Sin esto, el cliente `mysql` del entrypoint lee el .sql como
+    # latin1 y los acentos quedan doble-codificados ("García" -> "GarcÃ­a").
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-character-set-client-handshake
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: reservas-upa-api
+    restart: unless-stopped
+    # No arranca hasta que MySQL responde al ping: si no, el pool falla al inicio.
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 4000
+      # `db` es el nombre del servicio: Docker lo resuelve por DNS interno.
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      DB_NAME: ${DB_NAME:-reservas_upa}
+      JWT_SECRET: ${JWT_SECRET:-clave_secreta_desarrollo_upa}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Se hornea en el bundle: es la URL que el NAVEGADOR usa, no la de la
+        # red interna de Docker. Por eso es localhost y no `backend`.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
+    container_name: reservas-upa-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+volumes:
+  mysql_upa_data:
+    driver: local
