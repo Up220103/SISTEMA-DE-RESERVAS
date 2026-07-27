@@ -44,6 +44,7 @@ export default function Login() {
         rol === 1 ? '/alumnos' :
         rol === 2 ? '/profesor' :
         rol === 3 ? '/admin' :
+        rol === 4 ? '/admin-general' :
         '/'
       navigate(destino)
     }
