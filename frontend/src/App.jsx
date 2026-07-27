@@ -14,6 +14,12 @@ import Register from './features/auth/Register.jsx'
 import CalendarView from './features/bookings/CalendarView.jsx'
 import AlumnosDashboard from './features/alumnos/AlumnosDashboard.jsx'
 import ProfesorDashboard from './features/profesor/ProfesorDashboard.jsx'
+import AdminGeneralLayout from './components/layout/AdminGeneralLayout.jsx'
+import AGUsuariosPage from './pages/admin-general/UsuariosPage.jsx'
+import AGEspaciosPage from './pages/admin-general/EspaciosPage.jsx'
+import AGCalendarioPage from './pages/admin-general/CalendarioPage.jsx'
+import AGReservasPage from './pages/admin-general/ReservasPage.jsx'
+import AGReportesPage from './pages/admin-general/ReportesPage.jsx'
 import { selectIsAuthenticated, selectUser } from './features/auth/authSlice.js'
 
 function PrivateRoute({ children }) {
@@ -53,6 +59,23 @@ export default function App() {
         <Route path="historial" element={<HistorialPage />} />
         <Route path="notificaciones" element={<NotificacionesPage />} />
         <Route path="ayuda" element={<AyudaPage />} />
+      </Route>
+
+      {/* Panel Admin General (rol 4). Conectado al backend + BD. */}
+      <Route
+        path="/admin-general"
+        element={
+          <PrivateRoute>
+            <AdminGeneralLayout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<Navigate to="usuarios" replace />} />
+        <Route path="espacios" element={<AGEspaciosPage />} />
+        <Route path="calendario" element={<AGCalendarioPage />} />
+        <Route path="reservas" element={<AGReservasPage />} />
+        <Route path="usuarios" element={<AGUsuariosPage />} />
+        <Route path="reportes" element={<AGReportesPage />} />
       </Route>
 
       <Route path="/register" element={<Register />} />
