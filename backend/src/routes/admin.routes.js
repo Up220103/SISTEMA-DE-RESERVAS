@@ -9,6 +9,7 @@ import {
 } from '../controllers/cubiculo.controller.js'
 import { getAprobaciones, patchAprobacion } from '../controllers/aprobacion.controller.js'
 import { getCalendario } from '../controllers/calendario.controller.js'
+import { getReporteCubiculos, getReporteCubiculosPdf } from '../controllers/reporte.controller.js'
 import { requireAuth, requireRol } from '../middlewares/auth.middleware.js'
 
 const router = Router()
@@ -28,5 +29,9 @@ router.patch('/aprobaciones/:id', patchAprobacion)
 
 // Calendario de reservas de cubículos (por mes).
 router.get('/calendario', getCalendario)
+
+// Reportes: métricas para el dashboard y descarga en PDF.
+router.get('/reportes/cubiculos', getReporteCubiculos)
+router.get('/reportes/cubiculos/pdf', getReporteCubiculosPdf)
 
 export default router

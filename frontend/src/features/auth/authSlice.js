@@ -4,11 +4,12 @@ import api from '../../services/api.js'
 // Cuentas demo SOLO-FRONT: fallback para los modulos que todavia no tienen
 // backend (alumno/profesor). El login real (biblioteca, alumnos en la BD)
 // pasa siempre por el backend; estas solo entran si el backend las rechaza.
+// OJO: biblioteca@upa.edu.mx NO va aqui: ya existe en la BD, asi que si el backend
+// falla debe verse el error, no entrar con una sesion falsa que deja el panel vacio.
 // rol_id: 1=Estudiante, 2=Docente, 3=Admin Biblioteca, 4=Admin General.
 const DEMO_USERS = {
-  'alumno@upa.edu.mx':     { usuario_id: 901, nombre: 'Daniela',    apellido: 'Hernández', email: 'alumno@upa.edu.mx',     rol_id: 1 },
-  'profesor@upa.edu.mx':   { usuario_id: 902, nombre: 'Andrés',     apellido: 'Ruiz',      email: 'profesor@upa.edu.mx',   rol_id: 2 },
-  'biblioteca@upa.edu.mx': { usuario_id: 903, nombre: 'Lic. Sofía', apellido: 'Ramos',     email: 'biblioteca@upa.edu.mx', rol_id: 3 },
+  'alumno@upa.edu.mx':   { usuario_id: 901, nombre: 'Daniela', apellido: 'Hernández', email: 'alumno@upa.edu.mx',   rol_id: 1 },
+  'profesor@upa.edu.mx': { usuario_id: 902, nombre: 'Andrés',  apellido: 'Ruiz',      email: 'profesor@upa.edu.mx', rol_id: 2 },
 }
 
 export const login = createAsyncThunk(

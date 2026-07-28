@@ -13,12 +13,17 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Si el token expiro, limpiamos y mandamos al login
+// Si el token expiro o es invalido, limpiamos la sesion y mandamos al login.
+// (Sin esto, el panel se queda abierto pero vacio y sin explicacion.)
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.replace('/login')
+      }
     }
     return Promise.reject(error)
   },

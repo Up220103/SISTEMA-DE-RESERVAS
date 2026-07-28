@@ -93,6 +93,7 @@ const cubiculosSlice = createSlice({
 export const selectCubiculos = (state) => state.cubiculos.items
 export const selectEdificio = (state) => state.cubiculos.edificio
 export const selectCubStatus = (state) => state.cubiculos.status
+export const selectCubError = (state) => state.cubiculos.error
 
 export const selectResumen = createSelector([selectCubiculos], (items) => ({
   total: items.length,
