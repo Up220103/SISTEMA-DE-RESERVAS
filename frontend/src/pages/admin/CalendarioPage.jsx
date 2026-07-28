@@ -5,6 +5,7 @@ import PageHeading from '../../components/ui/PageHeading.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import { diasSemana, isoDe, esFinDeSemana } from '../../features/calendario/calendarData.js'
 import { fetchReservasMes, selectReservasMes } from '../../features/calendario/calendarioSlice.js'
+import { aprobar, rechazar } from '../../features/aprobaciones/aprobacionesSlice.js'
 
 const inicioDeMes = (d) => new Date(d.getFullYear(), d.getMonth(), 1)
 const capitalizar = (s) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -27,6 +28,20 @@ export default function CalendarioPage() {
 
   const [mesVista, setMesVista] = useState(() => inicioDeMes(hoy))
   const [diaSel, setDiaSel] = useState(() => new Date(hoy))
+  const [procesando, setProcesando] = useState(null) // id de la reserva en curso
+  const [errorAccion, setErrorAccion] = useState(null)
+
+  // Aprueba o rechaza sin salir del calendario. El slice del calendario escucha
+  // estas acciones, así que el contador del día se actualiza solo.
+  const resolver = async (id, estado) => {
+    setProcesando(id)
+    setErrorAccion(null)
+    const res = await dispatch(estado === 'aprobada' ? aprobar(id) : rechazar(id))
+    if ((estado === 'aprobada' ? aprobar : rechazar).rejected.match(res)) {
+      setErrorAccion(res.payload)
+    }
+    setProcesando(null)
+  }
 
   const anio = mesVista.getFullYear()
   const mes = mesVista.getMonth() // 0-11
@@ -170,24 +185,53 @@ export default function CalendarioPage() {
             <ul className="space-y-2">
               {reservasDiaSel.map((r) => {
                 const b = estadoBadge[r.estado] || estadoBadge.pendiente
+                const enProceso = procesando === r.id
                 return (
-                  <li key={r.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
-                    <span className="font-mono text-xs text-slate-400">{r.hora}</span>
-                    <div className="min-w-0 flex-1 leading-tight">
-                      <p className="truncate text-sm font-bold text-slate-900">{r.cubiculo}</p>
-                      <p className="truncate text-xs text-slate-500">{r.solicitante}</p>
+                  <li key={r.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs text-slate-400">{r.hora}</span>
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <p className="truncate text-sm font-bold text-slate-900">{r.cubiculo}</p>
+                        <p className="truncate text-xs text-slate-500">{r.solicitante}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${b.chip}`}>{b.label}</span>
                     </div>
-                    <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${b.chip}`}>{b.label}</span>
+
+                    {/* El admin resuelve la solicitud sin salir del calendario. */}
+                    {r.estado === 'pendiente' && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => resolver(r.id, 'aprobada')}
+                          disabled={enProceso}
+                          className="flex-1 rounded-lg bg-brand py-1.5 text-xs font-semibold text-white transition hover:bg-brand-dark disabled:opacity-50"
+                        >
+                          {enProceso ? '…' : 'Aprobar'}
+                        </button>
+                        <button
+                          onClick={() => resolver(r.id, 'rechazada')}
+                          disabled={enProceso}
+                          className="flex-1 rounded-lg border border-slate-200 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    )}
                   </li>
                 )
               })}
             </ul>
           )}
 
+          {errorAccion && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+              {errorAccion}
+            </p>
+          )}
+
           {reservasDiaSel.some((r) => r.estado === 'pendiente') && (
             <p className="mt-4 flex items-center gap-2 text-xs text-slate-400">
               <Icon name="info" className="h-4 w-4" />
-              Apruébalas o recházalas en la pestaña Aprobaciones.
+              Puedes aprobar o rechazar aquí mismo, o gestionarlas en Aprobaciones.
             </p>
           )}
         </section>
