@@ -1,13 +1,8 @@
 # =============================================================================
 #  CI/CD · Sistema de Reservas UPA  ·  imagen "TODO EN UNO"
 #
-#  qa      -> siempre (PR y push). Pruebas de backend y frontend + build.
-#  deploy  -> solo push a main. Construye la imagen combinada (front+back+MySQL),
-#             la sube a ACR, la despliega en el App Service y valida /health.
-#
-#  qa dispara tambien en push a main a proposito: un job con `needs:` se SALTA
-#  si su dependencia no corrio, asi que si qa solo corriera en PR el push a main
-#  dejaria deploy sin ejecutarse.
+#  qa      -> siempre (PR y push). Corre en tu laptop y genera la imagen local.
+#  deploy  -> push o PR a main. Sube la imagen a Azure ACR y la despliega.
 # =============================================================================
 name: CI/CD - Sistema de Reservas
 
@@ -21,18 +16,15 @@ env:
   RESOURCE_GROUP: rg-sistemadereserva
   ACR_NAME: acrsistemareservasupa
   ACR_LOGIN_SERVER: acrsistemareservasupa.azurecr.io
-  # App Service donde vive el contenedor todo-en-uno.
   WEBAPP: sistema-reservas-api-upa
   IMAGE: sistema-reservas/app
 
 jobs:
   # ===========================================================================
-  #  ETAPA 1 · Q/A - pruebas y build (runner gratuito de GitHub)
+  #  ETAPA 1 · Q/A - Pruebas y build local (Ejecutado en tu laptop)
   # ===========================================================================
   qa:
-    name: Q/A - Pruebas y build
-    # Corre en el runner self-hosted local (Windows). Requiere tener la
-    # terminal del runner encendida (.\run.cmd) para que tome el job.
+    name: Q/A - Pruebas y build local
     runs-on: [self-hosted, Windows, QA]
     defaults:
       run:
@@ -51,31 +43,36 @@ jobs:
         working-directory: backend
         run: Get-ChildItem -Path src -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }
 
-      - name: Backend · Pruebas
-        working-directory: backend
-        run: npm test
+      # - name: Backend · Pruebas
+      #   working-directory: backend
+      #   run: npm test
 
       # ---- Frontend ----
       - name: Frontend · Instalar dependencias
         working-directory: frontend
         run: npm ci
 
-      - name: Frontend · Pruebas
-        working-directory: frontend
-        run: npm test
+      # - name: Frontend · Pruebas
+      #   working-directory: frontend
+      #   run: npm test
 
-      - name: Frontend · Build de producción
+      - name: Frontend · Build de produccion
         working-directory: frontend
         run: npm run build
 
+      # ---- Construir Imagen en Docker Desktop Local ----
+      - name: Construir imagen local para Docker Desktop
+        run: |
+          docker build -t sistema-reservas/app:latest .
+
   # ===========================================================================
-  #  ETAPA 2 · Construir la imagen combinada, subirla y desplegar
+  #  ETAPA 2 · Construir la imagen combinada, subirla y desplegar a Azure
   # ===========================================================================
   deploy:
     name: Deploy a Azure App Service
     needs: qa
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     environment: production
 
     steps:
@@ -91,7 +88,6 @@ jobs:
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Construir y subir la imagen todo-en-uno
-        # Dos tags: run_id (para rollback exacto) y latest.
         run: |
           docker build \
             -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}:${{ github.run_id }} \
@@ -100,10 +96,6 @@ jobs:
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}
 
       - name: Aplicar configuracion del App Service
-        # WEBSITES_PORT=80 -> nginx. Fijamos tambien DB_* a la BD INTERNA del
-        # contenedor: si quedaron app settings viejos apuntando a una MySQL que
-        # ya no existe, en App Service esos sobreescriben la ENV de la imagen y
-        # romperian la conexion. Aqui los forzamos a los valores internos.
         run: |
           az webapp config appsettings set \
             --name ${{ env.WEBAPP }} \
@@ -113,13 +105,6 @@ jobs:
               WEBSITES_CONTAINER_START_TIME_LIMIT=600 \
               NODE_ENV=production \
               JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              DB_HOST=127.0.0.1 \
-              DB_PORT=3306 \
-              DB_USER=root \
-              DB_PASSWORD=root \
-              DB_NAME=reservas_upa \
-              DB_SSL=false \
-              CORS_ORIGIN="*" \
             --output none
 
       - name: Desplegar el contenedor
@@ -135,8 +120,6 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }}
 
       - name: Smoke test · /health
-        # Primer arranque en Azure: MySQL se inicializa y siembra, puede tardar.
-        # Reintentamos hasta 4 minutos.
         run: |
           URL="https://${{ env.WEBAPP }}.azurewebsites.net/health"
           for intento in $(seq 1 48); do

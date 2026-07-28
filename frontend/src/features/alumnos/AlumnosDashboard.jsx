@@ -237,6 +237,7 @@ export default function AlumnosDashboard() {
             </section>
           )}
 
+
           {/* ===================== PASO 2 ===================== */}
           {paso === 2 && (
             <section className="mt-6">
