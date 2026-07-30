@@ -1,8 +1,14 @@
 # =============================================================================
 #  CI/CD · Sistema de Reservas UPA  ·  imagen "TODO EN UNO"
 #
-#  qa      -> siempre (PR y push). Corre en tu laptop y genera la imagen local.
-#  deploy  -> push o PR a main. Sube la imagen a Azure ACR y la despliega.
+#  qa      -> siempre (PR y push). Corre en tu laptop (runner self-hosted),
+#             prueba/compila y genera la imagen local en Docker Desktop.
+#  deploy  -> push a main o PR. Sube la imagen a Azure ACR y la despliega.
+#
+#  RESILIENCIA (para la revisión del profe): el job `deploy` es IDEMPOTENTE.
+#  Si borran de Azure el contenedor, la imagen del ACR, la Web App, el plan o
+#  el propio ACR, el pipeline los VUELVE A CREAR en la siguiente corrida.
+#  El job `qa` enciende Docker Desktop si está apagado antes de construir.
 # =============================================================================
 name: CI/CD - Sistema de Reservas
 
@@ -16,12 +22,13 @@ env:
   RESOURCE_GROUP: rg-sistemadereserva
   ACR_NAME: acrsistemareservasupa
   ACR_LOGIN_SERVER: acrsistemareservasupa.azurecr.io
+  PLAN: plan-sistema-reservas
   WEBAPP: sistema-reservas-api-upa
   IMAGE: sistema-reservas/app
 
 jobs:
   # ===========================================================================
-  #  ETAPA 1 · Q/A - Pruebas y build local (Ejecutado en tu laptop)
+  #  ETAPA 1 · Q/A - Pruebas y build local (en tu laptop, runner self-hosted)
   # ===========================================================================
   qa:
     name: Q/A - Pruebas y build local
@@ -60,13 +67,34 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      # ---- Construir Imagen en Docker Desktop Local ----
-      - name: Construir imagen local para Docker Desktop
+      # ---- Asegurar que Docker Desktop esté encendido ----
+      - name: Asegurar Docker Desktop encendido
+        # Si el profe cierra Docker Desktop, este paso lo vuelve a prender y
+        # espera hasta 3 min a que el engine responda, para que el build no falle.
         run: |
-          docker build -t sistema-reservas/app:latest .
+          $ok = $false
+          docker info *> $null; if ($LASTEXITCODE -eq 0) { $ok = $true }
+          if (-not $ok) {
+            Write-Host "Docker no responde. Iniciando Docker Desktop..."
+            $exe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+            if (Test-Path $exe) { Start-Process $exe } else { Write-Error "No se encontró Docker Desktop.exe"; exit 1 }
+            for ($i = 1; $i -le 36; $i++) {
+              Start-Sleep -Seconds 5
+              docker info *> $null
+              if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+              Write-Host "Esperando al engine de Docker... ($i/36)"
+            }
+          }
+          if (-not $ok) { Write-Error "Docker Desktop no se pudo iniciar."; exit 1 }
+          Write-Host "Docker listo."
+
+      # ---- Construir la imagen local en Docker Desktop ----
+      - name: Construir imagen local para Docker Desktop
+        # Regenera la imagen local aunque el profe la haya borrado de Docker.
+        run: docker build -t sistema-reservas/app:latest .
 
   # ===========================================================================
-  #  ETAPA 2 · Construir la imagen combinada, subirla y desplegar a Azure
+  #  ETAPA 2 · Asegurar infra en Azure, construir, subir y desplegar
   # ===========================================================================
   deploy:
     name: Deploy a Azure App Service
@@ -84,10 +112,39 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # ---- Infra idempotente: recrea lo que el profe haya borrado ----
+      - name: Asegurar infraestructura en Azure
+        run: |
+          set -e
+          RG=${{ env.RESOURCE_GROUP }}
+
+          # ACR: si lo borraron, se recrea.
+          if ! az acr show -n ${{ env.ACR_NAME }} -g "$RG" >/dev/null 2>&1; then
+            echo "ACR no existe: creándolo..."
+            az acr create -n ${{ env.ACR_NAME }} -g "$RG" --sku Basic --admin-enabled true --output none
+          fi
+          az acr update -n ${{ env.ACR_NAME }} --admin-enabled true --output none
+
+          # App Service Plan Linux: si lo borraron, se recrea.
+          if ! az appservice plan show -n ${{ env.PLAN }} -g "$RG" >/dev/null 2>&1; then
+            echo "Plan no existe: creándolo..."
+            az appservice plan create -n ${{ env.PLAN }} -g "$RG" --is-linux --sku B1 --output none
+          fi
+
+          # Web App: si la borraron (o borraron "la API"), se recrea.
+          if ! az webapp show -n ${{ env.WEBAPP }} -g "$RG" >/dev/null 2>&1; then
+            echo "Web App no existe: creándola..."
+            az webapp create -n ${{ env.WEBAPP }} -g "$RG" --plan ${{ env.PLAN }} \
+              --deployment-container-image-name mcr.microsoft.com/appsvc/staticsite:latest \
+              --output none
+          fi
+
       - name: Iniciar sesion en ACR
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Construir y subir la imagen todo-en-uno
+        # Cada corrida reconstruye y re-sube: si borraron la imagen del ACR,
+        # aquí se regenera. Tags: run_id (único, fuerza el re-pull) y latest.
         run: |
           docker build \
             -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}:${{ github.run_id }} \
@@ -95,26 +152,39 @@ jobs:
             .
           docker push --all-tags ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}
 
-      - name: Aplicar configuracion del App Service
+      - name: (Re)crear y desplegar el contenedor
+        # Idempotente: reconecta el ACR con credenciales explícitas y apunta la
+        # Web App al tag run_id. Si borraron el contenedor, aquí se vuelve a crear.
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
+          set -e
+          ACR_USER=$(az acr credential show -n ${{ env.ACR_NAME }} --query username -o tsv)
+          ACR_PASS=$(az acr credential show -n ${{ env.ACR_NAME }} --query 'passwords[0].value' -o tsv)
+
           az webapp config appsettings set \
             --name ${{ env.WEBAPP }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --settings \
               WEBSITES_PORT=80 \
+              WEBSITES_ENABLE_APP_SERVICE_STORAGE=false \
               WEBSITES_CONTAINER_START_TIME_LIMIT=600 \
               NODE_ENV=production \
-              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              JWT_SECRET="${JWT_SECRET:-cambia_este_secreto_en_produccion}" \
+              DOCKER_REGISTRY_SERVER_URL="https://${{ env.ACR_LOGIN_SERVER }}" \
+              DOCKER_REGISTRY_SERVER_USERNAME="$ACR_USER" \
+              DOCKER_REGISTRY_SERVER_PASSWORD="$ACR_PASS" \
             --output none
 
-      - name: Desplegar el contenedor
-        run: |
           az webapp config container set \
             --name ${{ env.WEBAPP }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE }}:${{ github.run_id }} \
-            --container-registry-url https://${{ env.ACR_LOGIN_SERVER }} \
+            --container-registry-url "https://${{ env.ACR_LOGIN_SERVER }}" \
+            --container-registry-user "$ACR_USER" \
+            --container-registry-password "$ACR_PASS" \
             --output none
+
           az webapp restart \
             --name ${{ env.WEBAPP }} \
             --resource-group ${{ env.RESOURCE_GROUP }}
