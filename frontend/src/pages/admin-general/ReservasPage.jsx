@@ -172,23 +172,18 @@ export default function ReservasPage() {
                             onClick={() => aprobar(r)}
                             className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
                           >
-                            Aprobar
+                            Aceptar
                           </button>
                           <button
                             onClick={() => abrirCancelacion(r)}
                             className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                           >
-                            Rechazar
+                            Cancelar
                           </button>
                         </>
-                      ) : r.estado === 'Confirmada' ? (
-                        <button
-                          onClick={() => abrirCancelacion(r)}
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50"
-                        >
-                          Cancelar
-                        </button>
                       ) : (
+                        // Una reserva ya aceptada (Confirmada) o finalizada no se puede
+                        // cancelar desde aquí: solo se aprueban/cancelan las Pendientes.
                         <span className="text-xs text-slate-300">—</span>
                       )}
                     </div>
