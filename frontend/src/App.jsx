@@ -11,7 +11,6 @@ import HistorialPage from './pages/admin/HistorialPage.jsx'
 import NotificacionesPage from './pages/admin/NotificacionesPage.jsx'
 import AyudaPage from './pages/admin/AyudaPage.jsx'
 import Register from './features/auth/Register.jsx'
-import CalendarView from './features/bookings/CalendarView.jsx'
 import AlumnosDashboard from './features/alumnos/AlumnosDashboard.jsx'
 import ProfesorDashboard from './features/profesor/ProfesorDashboard.jsx'
 import AdminGeneralLayout from './components/layout/AdminGeneralLayout.jsx'
@@ -35,6 +34,23 @@ function RoleRoute({ roles, children }) {
   const user = useSelector(selectUser)
   if (!isAuth) return <Navigate to="/login" replace />
   return roles.includes(user?.rol_id) ? children : <Navigate to="/" replace />
+}
+
+// Ruta raiz: no tiene pantalla propia. Envia a cada usuario al panel que le
+// corresponde por rol (1=Estudiante, 2=Docente, 3=Admin Biblioteca,
+// 4=Admin General); si no hay sesion, al login.
+function HomeRedirect() {
+  const isAuth = useSelector(selectIsAuthenticated)
+  const user = useSelector(selectUser)
+  if (!isAuth) return <Navigate to="/login" replace />
+  const rol = user?.rol_id
+  const destino =
+    rol === 1 ? '/alumnos' :
+    rol === 2 ? '/profesor' :
+    rol === 3 ? '/admin' :
+    rol === 4 ? '/admin-general' :
+    '/login'
+  return <Navigate to={destino} replace />
 }
 
 export default function App() {
@@ -95,14 +111,7 @@ export default function App() {
           </PrivateRoute>
         }
       />
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <CalendarView />
-          </PrivateRoute>
-        }
-      />
+      <Route path="/" element={<HomeRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

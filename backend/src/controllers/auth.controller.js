@@ -16,11 +16,32 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secreto_de_desarrollo'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h'
 const BCRYPT_ROUNDS = 10
 
-// El auto-registro es solo para alumnos: up<matricula>@alumnos.upa.edu(.mx).
-// (Docentes y admin se dan de alta en la BD, con dominio @upa.edu.mx.)
+// El auto-registro acepta alumnos y profesores (los admin se dan de alta en la BD):
+//   Alumno   -> up<matricula>@alumnos.upa.edu(.mx)   -> rol 1 (Estudiante)
+//   Profesor -> nombre.apellido@upa.edu.mx           -> rol 2 (Docente)
 const EMAIL_ESTUDIANTE = /^up\d+@alumnos\.upa\.edu(\.mx)?$/i
-// Rol por defecto para auto-registro: 1 = Estudiante (ver tabla rol).
+const EMAIL_DOCENTE = /^[a-z0-9._%+-]+@upa\.edu\.mx$/i
+// Roles asignados automaticamente segun el dominio del correo (ver tabla rol).
 const ROL_ESTUDIANTE = 1
+const ROL_DOCENTE = 2
+
+// Devuelve el rol_id que corresponde al correo, o null si no es un correo UPA valido.
+// Se comprueba primero alumno: su subdominio (@alumnos.upa.edu.mx) no coincide con
+// el patron de docente (@upa.edu.mx), asi que no hay ambiguedad.
+function rolPorCorreo(email) {
+  if (EMAIL_ESTUDIANTE.test(email)) return ROL_ESTUDIANTE
+  if (EMAIL_DOCENTE.test(email)) return ROL_DOCENTE
+  return null
+}
+
+// ID a mostrar: para alumnos es su matrícula tal cual aparece en el correo
+// (upXXXXXX). Al derivarse del correo (no editable) es inmutable. Para el resto
+// se usa su identificador (matrícula/num. empleado) o un genérico USR-<id>.
+function idParaMostrar(u) {
+  const m = /^(up\d+)@alumnos\.upa\.edu(\.mx)?$/i.exec(u.email || '')
+  if (m) return m[1].toLowerCase()
+  return u.identificador || `USR-${u.usuario_id}`
+}
 
 // Forma publica del usuario que se envia al frontend (sin el hash).
 function usuarioPublico(u) {
@@ -46,16 +67,22 @@ function firmarToken(user) {
 // POST /api/auth/register
 export async function register(req, res, next) {
   try {
-    const { nombre, apellido, email, password } = req.body || {}
-    if (!nombre || !apellido || !email || !password) {
+    const { nombre, apellido, email, password, telefono } = req.body || {}
+    if (!nombre || !apellido || !email || !password || !telefono) {
       return res
         .status(400)
-        .json({ message: 'Nombre, apellido, correo y contrasena son obligatorios.' })
+        .json({ message: 'Nombre, apellido, correo, teléfono y contraseña son obligatorios.' })
     }
-    if (!EMAIL_ESTUDIANTE.test(email)) {
+    const rolId = rolPorCorreo(email)
+    if (!rolId) {
       return res.status(400).json({
-        message: 'El correo de alumno debe tener el formato up<matricula>@alumnos.upa.edu.mx',
+        message:
+          'Usa tu correo UPA: up<matrícula>@alumnos.upa.edu.mx para alumnos o nombre.apellido@upa.edu.mx para profesores.',
       })
+    }
+    // El teléfono debe ser exactamente 10 dígitos (sin espacios ni signos).
+    if (!/^\d{10}$/.test(String(telefono))) {
+      return res.status(400).json({ message: 'El teléfono debe tener exactamente 10 dígitos.' })
     }
     if (password.length < 8) {
       return res.status(400).json({ message: 'La contrasena debe tener al menos 8 caracteres.' })
@@ -72,7 +99,8 @@ export async function register(req, res, next) {
       apellido,
       email,
       passwordHash,
-      rolId: ROL_ESTUDIANTE,
+      rolId,
+      telefono: String(telefono),
     })
 
     const user = usuarioPublico(creado)
@@ -126,7 +154,7 @@ export async function perfil(req, res, next) {
     res.json({
       perfil: {
         id: u.usuario_id,
-        identificador: u.identificador || `USR-${u.usuario_id}`,
+        identificador: idParaMostrar(u),
         nombre: u.nombre,
         apellido: u.apellido,
         nombre_completo: `${u.nombre} ${u.apellido}`,
@@ -154,7 +182,7 @@ export async function editarPerfil(req, res, next) {
     res.json({
       perfil: {
         id: u.usuario_id,
-        identificador: u.identificador || `USR-${u.usuario_id}`,
+        identificador: idParaMostrar(u),
         nombre: u.nombre,
         apellido: u.apellido,
         nombre_completo: `${u.nombre} ${u.apellido}`,

@@ -172,7 +172,27 @@ export async function reporteReservas(desde = null, hasta = null) {
       ORDER BY est.estado_id`,
     p,
   )
-  return { porEdificio, porEspacio, porEstado }
+  // Reservas por día (para la gráfica de tendencia). Solo salen los días con
+  // reservas; el frontend rellena los días vacíos del rango con 0.
+  const [porDia] = await query(
+    `SELECT rv.fecha_reserva AS fecha, COUNT(*) AS total
+       FROM reserva rv
+      WHERE 1=1 ${cond}
+      GROUP BY rv.fecha_reserva
+      ORDER BY rv.fecha_reserva`,
+    p,
+  )
+  // Reservas por tipo de espacio (Cubículo, Auditorio, Laboratorio, Sala...).
+  const [porTipo] = await query(
+    `SELECT te.tipo_id, te.nombre_tipo AS tipo, COUNT(rv.reserva_id) AS total
+       FROM tipo_espacio te
+       LEFT JOIN espacio es ON es.tipo_id = te.tipo_id
+       LEFT JOIN reserva rv ON rv.espacio_id = es.espacio_id ${cond}
+      GROUP BY te.tipo_id, te.nombre_tipo
+      ORDER BY total DESC, tipo`,
+    p,
+  )
+  return { porEdificio, porEspacio, porEstado, porDia, porTipo }
 }
 
 // Cambia el estado de una reserva (aprobar=2 Confirmada, rechazar/cancelar=4).
