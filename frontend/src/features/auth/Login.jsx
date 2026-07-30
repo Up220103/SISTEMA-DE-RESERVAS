@@ -95,7 +95,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="up230743@alumnos.upa.edu.mx"
+                  placeholder="Ingresa tu correo institucional aquí"
                   autoComplete="email"
                   className="w-full rounded-lg border border-[#CBD5E1] bg-white py-3 pl-11 pr-4 text-[15px] text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0033A0] focus:ring-2 focus:ring-[#0033A0]/15"
                 />

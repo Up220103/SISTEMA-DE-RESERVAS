@@ -12,6 +12,14 @@ import {
 } from '../../features/adminGeneral/adminApi.js'
 
 const esAlumno = (email) => /@alumnos\.upa\.edu(\.mx)?$/i.test(email || '')
+// ID del usuario para mostrar: para alumnos es su matrícula tal cual aparece en
+// el correo institucional (upXXXXXX); como se deriva del correo (que no se puede
+// editar), el ID es inmutable. Para el resto se usa su identificador/num. empleado.
+const idUsuario = (u) => {
+  const m = /^(up\d+)@alumnos\.upa\.edu(\.mx)?$/i.exec(u.email || '')
+  if (m) return m[1].toLowerCase()
+  return u.identificador || u.matricula || `UP-${String(u.id).padStart(4, '0')}`
+}
 // Solo primer nombre + primer apellido.
 const nombreCorto = (u) =>
   `${(u.nombre || '').trim().split(/\s+/)[0]} ${(u.apellido || '').trim().split(/\s+/)[0]}`.trim()
@@ -181,7 +189,7 @@ export default function UsuariosPage() {
                         onClick={() => toggleEstado(u)}
                         className={`rounded-md px-2.5 py-1.5 text-xs font-semibold text-white transition ${
                           u.estado === 'Activo'
-                            ? 'bg-orange-500 hover:bg-orange-600'
+                            ? 'bg-red-600 hover:bg-red-700'
                             : 'bg-green-600 hover:bg-green-700'
                         }`}
                       >
@@ -241,7 +249,7 @@ export default function UsuariosPage() {
             {/* Cuerpo */}
             <div className="max-h-[60vh] overflow-y-auto px-6 py-5">
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                <Dato etiqueta="UP / Matrícula / ID" valor={detalle.usuario.identificador || `UP-${String(detalle.usuario.id).padStart(4, '0')}`} />
+                <Dato etiqueta="UP / Matrícula / ID" valor={idUsuario(detalle.usuario)} />
                 <Dato etiqueta="Correo institucional" valor={detalle.usuario.email} />
                 <Dato etiqueta="Tipo de usuario" valor={detalle.usuario.rol} />
                 <Dato etiqueta="Estatus" valor={detalle.usuario.estado} />

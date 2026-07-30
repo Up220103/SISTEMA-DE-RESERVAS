@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 
 import Logo from '../ui/Logo.jsx'
 import Icon from '../ui/Icon.jsx'
+import UserProfileModal from '../UserProfileModal.jsx'
 import { logout, selectUser } from '../../features/auth/authSlice.js'
 
 // Secciones del panel del Administrador General (documento).
@@ -24,6 +26,7 @@ export default function AdminGeneralLayout() {
   const user = useSelector(selectUser)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const [perfilAbierto, setPerfilAbierto] = useState(false)
 
   const cerrarSesion = () => {
     dispatch(logout())
@@ -54,11 +57,16 @@ export default function AdminGeneralLayout() {
             </span>
           </div>
         </div>
-        <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+        <button
+          onClick={() => setPerfilAbierto(true)}
+          className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
           <Icon name="user" className="h-4 w-4" />
           Mi perfil
         </button>
       </header>
+
+      <UserProfileModal open={perfilAbierto} onClose={() => setPerfilAbierto(false)} />
 
       <div className="flex flex-1">
         <main className="flex-1 overflow-x-auto px-10 py-10">

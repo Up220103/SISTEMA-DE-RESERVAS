@@ -20,6 +20,7 @@ export default function Register() {
   const [nombre, setNombre] = useState('')
   const [apellido, setApellido] = useState('')
   const [email, setEmail] = useState('')
+  const [telefono, setTelefono] = useState('')
   const [password, setPassword] = useState('')
 
   const dispatch = useDispatch()
@@ -29,8 +30,13 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const result = await dispatch(register({ nombre, apellido, email, password }))
-    if (register.fulfilled.match(result)) navigate('/')
+    const result = await dispatch(register({ nombre, apellido, email, password, telefono }))
+    if (register.fulfilled.match(result)) {
+      // El rol se asigna por el dominio del correo (1=Estudiante, 2=Docente):
+      // llevamos a cada uno a su pantalla correspondiente.
+      const rol = result.payload?.user?.rol_id
+      navigate(rol === 2 ? '/profesor' : '/alumnos')
+    }
   }
 
   return (
@@ -54,10 +60,10 @@ export default function Register() {
             Crear cuenta
           </p>
           <h1 className="font-['Outfit'] text-4xl font-extrabold tracking-tight text-[#0F172A]">
-            Regístrate como alumno
+            Regístrate en el sistema
           </h1>
           <p className="mt-2 text-[15px] text-[#475569]">
-            Usa tu correo institucional de alumno para crear tu cuenta.
+            Usa tu correo proporcionado por la UPA para crear tu cuenta.
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -93,13 +99,30 @@ export default function Register() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="up230743@alumnos.upa.edu.mx"
+                placeholder="Ingresa tu correo institucional aquí"
                 autoComplete="email"
                 className={inputCls}
               />
               <span className="mt-1 block text-xs text-[#94A3B8]">
-                Formato: up&lt;matrícula&gt;@alumnos.upa.edu.mx
+                Formato: up&lt;matrícula&gt;@alumnos.upa.edu.mx para alumnos, nombre.apellido@upa.edu.mx para profesores.
               </span>
+            </div>
+
+            <div>
+              <label htmlFor="telefono" className={labelCls}>Teléfono</label>
+              <input
+                id="telefono"
+                type="tel"
+                inputMode="numeric"
+                value={telefono}
+                // Solo dígitos, máximo 10 (número telefónico a 10 dígitos).
+                onChange={(e) => setTelefono(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                required
+                placeholder="10 dígitos"
+                autoComplete="tel"
+                className={inputCls}
+              />
+              <span className="mt-1 block text-xs text-[#94A3B8]">Debe tener 10 dígitos.</span>
             </div>
 
             <div>
