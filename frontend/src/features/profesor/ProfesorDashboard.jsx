@@ -11,8 +11,10 @@ import {
   fetchNotificaciones,
   leerNotificaciones,
   crearReserva,
+  cancelarMiReserva,
 } from '../reservas/reservaSlice.js'
 import UserProfileModal from '../../components/UserProfileModal.jsx'
+import SoporteContacto, { SoporteModal } from '../../components/SoporteContacto.jsx'
 import api from '../../services/api.js'
 import logoUpa from '../../assets/upa-logo.webp'
 
@@ -48,6 +50,7 @@ const IconBookmark = () => (<svg viewBox="0 0 24 24" width="18" height="18" fill
 const IconLogout = () => (<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" /></svg>)
 const IconCheck = () => (<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>)
 const IconDoc = () => (<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h6" /></svg>)
+const IconHelpCircle = () => (<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4" /><path d="M12 17h.01" /></svg>)
 const ICONOS_ESPACIO = {
   cube: (<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4v16" /></svg>),
   mic: (<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0 M12 18v3" /></svg>),
@@ -75,7 +78,7 @@ export default function ProfesorDashboard() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const user = useSelector((state) => state.auth.user)
-  const { tipos, porEdificio, mias, ocupadas, notificaciones, noLeidas, creando, error } = useSelector((state) => state.reservas)
+  const { tipos, porEdificio, mias, ocupadas, notificaciones, noLeidas, creando, cancelandoId, error } = useSelector((state) => state.reservas)
 
   const [perfilData, setPerfilData] = useState(null) // datos frescos del backend (nombre correcto)
   const [notiAbierto, setNotiAbierto] = useState(false)
@@ -89,6 +92,7 @@ export default function ProfesorDashboard() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [folio, setFolio] = useState('')
   const [perfilAbierto, setPerfilAbierto] = useState(false)
+  const [soporteAbierto, setSoporteAbierto] = useState(false)
 
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
   const anio = refFecha.getFullYear()
@@ -138,6 +142,7 @@ export default function ProfesorDashboard() {
     if (crearReserva.fulfilled.match(res)) {
       setModalAbierto(false)
       dispatch(fetchNotificaciones()) // llega la notificación de "pendiente"
+      dispatch(fetchMisReservas())    // la nueva reserva aparece en el panel lateral
       // Reinicia el asistente
       setPaso(1); setEspacioSel(null); setDiaSel(null); setHoraSlot(null); setTitulo('')
     }
@@ -145,6 +150,27 @@ export default function ProfesorDashboard() {
 
   const handleLogout = () => { dispatch(logout()); navigate('/login') }
   const cambiarMes = (delta) => { setRefFecha(new Date(anio, mes + delta, 1)); setDiaSel(null); setHoraSlot(null) }
+
+  // Cancelar libera el horario, así que hay que releer la disponibilidad.
+  const handleCancelar = async (reservaId) => {
+    const res = await dispatch(cancelarMiReserva(reservaId))
+    if (cancelarMiReserva.fulfilled.match(res)) {
+      dispatch(fetchMisReservas())
+      dispatch(fetchNotificaciones())
+      if (diaSel) {
+        dispatch(fetchHorasOcupadas({
+          fecha: aISO(diaSel),
+          espacioId: espacioSel?.espacio_id,
+          tipoId: esCubiculo ? tipoSel : undefined,
+        }))
+      }
+    }
+  }
+
+  // Solo tiene sentido cancelar lo que sigue activo y aún no ha empezado.
+  const sePuedeCancelar = (r) =>
+    ['Pendiente', 'Confirmada'].includes(r.estado) &&
+    new Date(`${r.fecha_reserva}T${r.hora_inicio}`).getTime() - Date.now() > 2 * 60 * 60 * 1000
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC] text-[#0F172A]">
@@ -159,6 +185,7 @@ export default function ProfesorDashboard() {
             <span className="h-1.5 w-1.5 rounded-full bg-upa-blue" /> Panel · Docente
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setSoporteAbierto(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#E2E8F0] text-slate-600 transition hover:border-upa-blue hover:text-upa-blue" aria-label="Ayuda y soporte" title="Ayuda y soporte"><IconHelpCircle /></button>
             <button className="grid h-9 w-9 place-items-center rounded-lg border border-[#E2E8F0] text-slate-600 transition hover:border-upa-blue hover:text-upa-blue" aria-label="Idioma"><IconGlobe /></button>
             <button onClick={() => setPerfilAbierto(true)} className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2 font-display text-sm font-semibold text-slate-600 transition hover:border-upa-blue hover:text-upa-blue"><IconUser /><span className="hidden sm:inline">Mi perfil</span></button>
             <div className="relative">
@@ -412,17 +439,32 @@ export default function ProfesorDashboard() {
                   <p className="font-display text-sm font-bold text-[#0F172A]">{r.titulo}</p>
                   <p className="text-xs text-[#475569]">{r.espacio} · {r.edificio}</p>
                   <p className="font-mono-upa text-[11px] text-slate-500">{r.fecha_reserva} · {r.hora_inicio?.slice(0, 5)}–{r.hora_fin?.slice(0, 5)}</p>
-                  <span className={`mt-1 inline-block rounded px-1.5 py-0.5 font-mono-upa text-[9px] font-semibold uppercase ${r.estado === 'Confirmada' ? 'bg-green-100 text-green-700' : r.estado === 'Cancelada' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.estado}</span>
+                  <span className={`mt-1 inline-block rounded px-1.5 py-0.5 font-mono-upa text-[9px] font-semibold uppercase ${r.estado === 'Confirmada' ? 'bg-green-100 text-green-700' : r.estado === 'Cancelada' || r.estado === 'Rechazada' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.estado}</span>
+                  {sePuedeCancelar(r) && (
+                    <button
+                      onClick={() => handleCancelar(r.reserva_id)}
+                      disabled={cancelandoId === r.reserva_id}
+                      className="mt-2 w-full rounded-lg border border-[#CBD5E1] py-1.5 font-display text-xs font-semibold text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    >
+                      {cancelandoId === r.reserva_id ? 'Cancelando…' : 'Cancelar reserva'}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
+            <p className="mt-3 font-mono-upa text-[10px] leading-relaxed text-slate-400">
+              Puedes cancelar hasta 2 horas antes de la hora reservada.
+            </p>
           </div>
+
+          <SoporteContacto onAbrirAyuda={() => setSoporteAbierto(true)} />
 
           <button onClick={handleLogout} className="mt-5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-display text-sm font-semibold text-[#475569] transition hover:bg-red-50 hover:text-red-600"><IconLogout /> Cerrar sesión</button>
         </aside>
       </div>
 
       <UserProfileModal open={perfilAbierto} onClose={() => setPerfilAbierto(false)} />
+      <SoporteModal open={soporteAbierto} onClose={() => setSoporteAbierto(false)} />
 
       {/* Modal: Términos y condiciones + confirmación */}
       {modalAbierto && (
@@ -457,6 +499,7 @@ export default function ProfesorDashboard() {
                 <li>El espacio debe utilizarse únicamente para fines académicos. Está prohibido consumir alimentos o bebidas dentro de los espacios.</li>
                 <li>El usuario es responsable del orden y los bienes dentro del espacio durante el periodo reservado.</li>
                 <li>Cualquier daño al mobiliario o equipo podrá generar una sanción administrativa según el reglamento UPA.</li>
+                <li>Es responsabilidad del docente <b>cuidar los dispositivos electrónicos</b> (computadoras, mouse, teclado, proyector, etc.). Cualquier incidente que ocurra en el laboratorio será revisado directamente con quien realizó la reserva.</li>
                 <li>Las reservas pueden cancelarse hasta con <b>2 horas de anticipación</b>.</li>
               </ol>
               {error && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

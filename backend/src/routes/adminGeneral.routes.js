@@ -14,9 +14,14 @@ router.use(requireAuth, requireAdminGeneral)
 // Usuarios
 router.get('/usuarios', ctrl.getUsuarios)
 router.get('/usuarios/:id/reservas', ctrl.getReservasUsuario)
+router.patch('/usuarios/:id', ctrl.patchUsuario)
 router.patch('/usuarios/:id/estado', ctrl.patchEstado)
 router.patch('/usuarios/:id/rol', ctrl.patchRol)
+router.post('/usuarios/:id/password', ctrl.postPasswordUsuario)
 router.get('/roles', ctrl.getRoles)
+
+// Solicitudes de "olvide mi contrasena" pendientes de atender.
+router.get('/solicitudes-password', ctrl.getSolicitudesPassword)
 
 // Espacios / edificios
 router.get('/edificios', ctrl.getEdificios)

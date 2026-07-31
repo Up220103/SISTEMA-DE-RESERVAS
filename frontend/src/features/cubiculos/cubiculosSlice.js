@@ -32,7 +32,9 @@ export const setEstado = createAsyncThunk(
   async ({ id, estado }, { rejectWithValue }) => {
     try {
       const { data } = await api.patch(`/admin/cubiculos/${id}/estado`, { estado })
-      return data // { id, estado }
+      // { id, estado, reservasCanceladas }: al inhabilitarlo, el backend cancela
+      // las reservas futuras de ese cubículo y libera sus horarios.
+      return data
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Error al cambiar el estado')
     }
@@ -56,12 +58,17 @@ const initialState = {
   items: [],
   status: 'idle', // idle | loading | succeeded | failed
   error: null,
+  aviso: null, // mensaje informativo tras una acción (p. ej. reservas canceladas)
 }
 
 const cubiculosSlice = createSlice({
   name: 'cubiculos',
   initialState,
-  reducers: {},
+  reducers: {
+    limpiarAviso(state) {
+      state.aviso = null
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchCubiculos.pending, (state) => {
@@ -83,6 +90,10 @@ const cubiculosSlice = createSlice({
       .addCase(setEstado.fulfilled, (state, action) => {
         const cub = state.items.find((c) => c.id === action.payload.id)
         if (cub) cub.estado = action.payload.estado
+        const n = action.payload.reservasCanceladas || 0
+        state.aviso = n
+          ? `Se cancelaron ${n} reserva${n === 1 ? '' : 's'} futura${n === 1 ? '' : 's'} de este cubículo y se avisó a cada usuario.`
+          : null
       })
       .addCase(eliminarCubiculo.fulfilled, (state, action) => {
         state.items = state.items.filter((c) => c.id !== action.payload)
@@ -90,10 +101,12 @@ const cubiculosSlice = createSlice({
   },
 })
 
+export const { limpiarAviso } = cubiculosSlice.actions
 export const selectCubiculos = (state) => state.cubiculos.items
 export const selectEdificio = (state) => state.cubiculos.edificio
 export const selectCubStatus = (state) => state.cubiculos.status
 export const selectCubError = (state) => state.cubiculos.error
+export const selectCubAviso = (state) => state.cubiculos.aviso
 
 export const selectResumen = createSelector([selectCubiculos], (items) => ({
   total: items.length,

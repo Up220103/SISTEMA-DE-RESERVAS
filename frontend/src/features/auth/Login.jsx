@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate, Link } from 'react-router-dom'
 
 import { login } from './authSlice.js'
+import OlvidePasswordModal from './OlvidePasswordModal.jsx'
 import logoUpa from '../../assets/upa-logo.webp'
 
 // Iconos inline (sin dependencias externas).
@@ -28,6 +29,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [recordarme, setRecordarme] = useState(false)
+  const [olvideAbierto, setOlvideAbierto] = useState(false)
 
   const dispatch = useDispatch()
   const navigate = useNavigate()
@@ -136,7 +138,11 @@ export default function Login() {
                 />
                 Recordarme
               </label>
-              <button type="button" className="text-sm font-medium text-[#0033A0] hover:text-[#00287A]">
+              <button
+                type="button"
+                onClick={() => setOlvideAbierto(true)}
+                className="text-sm font-medium text-[#0033A0] hover:text-[#00287A] hover:underline"
+              >
                 ¿Olvidaste tu contraseña?
               </button>
             </div>
@@ -164,6 +170,8 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      <OlvidePasswordModal open={olvideAbierto} onClose={() => setOlvideAbierto(false)} />
     </div>
   )
 }

@@ -4,6 +4,8 @@ import {
   reservaEsCubiculo,
   cambiarEstadoReserva,
 } from '../models/aprobacion.model.js'
+import { reservaConDueno, traslapeActivo } from '../models/reserva.model.js'
+import { notificarResolucion, hoyISO } from '../services/reserva.service.js'
 
 // Estado BD -> estado front (tabs Pendientes/Aprobadas/Rechazadas).
 const ESTADO_A_FRONT = {
@@ -70,7 +72,42 @@ export async function patchAprobacion(req, res, next) {
       return res.status(404).json({ message: 'Reserva de cubículo no encontrada.' })
     }
 
+    const reserva = await reservaConDueno(id)
+    // Solo se resuelve lo que sigue Pendiente: sin esto, dos clics seguidos (o
+    // dos administradores a la vez) podrian rechazar algo ya aprobado.
+    if (reserva.estado !== 'Pendiente') {
+      return res.status(409).json({
+        message: `Esta reserva ya fue resuelta (${reserva.estado}).`,
+      })
+    }
+    if (reserva.fecha_reserva < hoyISO()) {
+      return res.status(409).json({ message: 'Esa reserva ya pasó; no se puede resolver.' })
+    }
+
+    if (estadoFront === 'aprobada') {
+      // Aprobar es lo que reserva el hueco de verdad. Entre que se creo la
+      // solicitud y ahora, el cubiculo pudo inhabilitarse u otra solicitud del
+      // mismo horario pudo aprobarse antes.
+      if (reserva.estado_espacio !== 'Disponible') {
+        return res.status(409).json({
+          message: `${reserva.espacio} está inhabilitado: reactívalo antes de aprobar esta reserva.`,
+        })
+      }
+      if (await traslapeActivo(reserva)) {
+        return res.status(409).json({
+          message: `Ya hay otra reserva confirmada para ${reserva.espacio} en ese horario.`,
+        })
+      }
+    }
+
     await cambiarEstadoReserva(id, estadoId)
+    // El solicitante se entera por su campana de notificaciones.
+    await notificarResolucion(
+      reserva,
+      estadoFront === 'aprobada' ? 'Confirmada' : 'Rechazada',
+      req.user.id,
+      req.body?.motivo,
+    )
     res.json({ id, estado: estadoFront })
   } catch (err) {
     next(err)

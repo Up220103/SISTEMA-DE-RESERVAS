@@ -6,11 +6,25 @@ import api from '../../services/api.js'
 export const getUsuarios = () => api.get('/admin-general/usuarios').then((r) => r.data.usuarios)
 export const getReservasUsuario = (id) =>
   api.get(`/admin-general/usuarios/${id}/reservas`).then((r) => r.data.reservas)
+// Devuelven { usuario, reservasCanceladas }: al desactivar una cuenta o quitarle
+// permiso sobre un tipo de espacio, el backend cancela sus reservas futuras para
+// liberar esos horarios. El panel avisa de cuantas cayeron.
 export const setEstadoUsuario = (id, estado) =>
-  api.patch(`/admin-general/usuarios/${id}/estado`, { estado }).then((r) => r.data.usuario)
+  api.patch(`/admin-general/usuarios/${id}/estado`, { estado }).then((r) => r.data)
 export const setRolUsuario = (id, rol_id) =>
-  api.patch(`/admin-general/usuarios/${id}/rol`, { rol_id }).then((r) => r.data.usuario)
+  api.patch(`/admin-general/usuarios/${id}/rol`, { rol_id }).then((r) => r.data)
 export const getRoles = () => api.get('/admin-general/roles').then((r) => r.data.roles)
+// Edita los datos de contacto de cualquier cuenta. El correo no se toca (de el
+// dependen el rol y la matricula) y el nombre de las cuentas institucionales
+// (Biblioteca / Admin General) lo conserva el backend aunque se envie otro.
+export const editarUsuario = (id, datos) =>
+  api.patch(`/admin-general/usuarios/${id}`, datos).then((r) => r.data.usuario)
+// Restablece la contrasena de un usuario que no puede entrar.
+export const restablecerPasswordUsuario = (id, nueva) =>
+  api.post(`/admin-general/usuarios/${id}/password`, { nueva }).then((r) => r.data)
+// Bandeja de solicitudes de "olvide mi contrasena" pendientes.
+export const getSolicitudesPassword = () =>
+  api.get('/admin-general/solicitudes-password').then((r) => r.data.solicitudes)
 
 // Espacios / edificios
 export const getEdificios = () => api.get('/admin-general/edificios').then((r) => r.data.edificios)

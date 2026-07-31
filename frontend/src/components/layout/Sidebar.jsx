@@ -1,9 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 
 import Icon from '../ui/Icon.jsx'
-import { logout } from '../../features/auth/authSlice.js'
-import { sessionUser, navItems } from '../../config/session.js'
+import { logout, selectUser } from '../../features/auth/authSlice.js'
+import { navItems } from '../../config/session.js'
 
 function SectionLabel({ children }) {
   return (
@@ -13,14 +13,21 @@ function SectionLabel({ children }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ onAbrirPerfil }) {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const user = useSelector(selectUser)
 
   const cerrarSesion = () => {
     dispatch(logout())
     navigate('/login')
   }
+
+  // Datos de la sesion real (antes eran un mock fijo en config/session.js).
+  const nombre = user ? `${user.nombre} ${user.apellido}`.trim() : 'Sesión'
+  const iniciales =
+    `${user?.nombre?.[0] || ''}${user?.apellido?.[0] || ''}`.toUpperCase() || 'AB'
+  const rol = (user?.rol || 'Admin Biblioteca').toUpperCase()
 
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-6 border-l border-slate-200 bg-white px-6 py-6">
@@ -29,17 +36,20 @@ export default function Sidebar() {
         <SectionLabel>SESIÓN ACTIVA</SectionLabel>
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-ink text-sm font-bold text-white">
-            {sessionUser.initials}
+            {iniciales}
           </div>
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-slate-900">{sessionUser.name}</p>
-            <p className="text-xs text-slate-400">{sessionUser.email}</p>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-bold text-slate-900">{nombre}</p>
+            <p className="truncate text-xs text-slate-400">{user?.email}</p>
           </div>
         </div>
         <span className="inline-block rounded-md bg-ink px-2.5 py-1 font-mono text-[10px] font-bold tracking-widest text-white">
-          {sessionUser.role}
+          {rol}
         </span>
-        <button className="w-full rounded-lg border border-slate-200 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+        <button
+          onClick={onAbrirPerfil}
+          className="w-full rounded-lg border border-slate-200 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
           Ver datos del usuario
         </button>
       </div>

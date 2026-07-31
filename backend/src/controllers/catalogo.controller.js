@@ -20,7 +20,10 @@ export async function getEspacios(req, res, next) {
     const tipoId = Number(req.query.tipo_id)
     if (!tipoId) return res.status(400).json({ message: 'El parámetro tipo_id es obligatorio.' })
 
-    const espacios = await espaciosPorTipo(tipoId)
+    // Solo se ofrecen espacios DISPONIBLES: los que estan en Mantenimiento o
+    // Bloqueado no se muestran ni se pueden reservar hasta que el Admin General
+    // los vuelva a habilitar.
+    const espacios = (await espaciosPorTipo(tipoId)).filter((e) => e.estado === 'Disponible')
     const porEdificio = {}
     for (const e of espacios) {
       if (!porEdificio[e.edificio]) porEdificio[e.edificio] = []

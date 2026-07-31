@@ -10,11 +10,25 @@ after(cerrarPool)
 
 const auth = { Authorization: `Bearer ${tokenDe()}` }
 
+const aISO = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 // Una fecha futura siempre valida, para aislar el caso que se esta probando.
+// Se corre al lunes si cae en fin de semana: solo se reserva de lunes a viernes,
+// y esa regla se comprueba antes que el horario.
 function fechaFutura(diasAdelante = 30) {
   const d = new Date()
   d.setDate(d.getDate() + diasAdelante)
-  return d.toISOString().slice(0, 10)
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
+  return aISO(d)
+}
+
+// El proximo sabado, para probar la regla de fin de semana.
+function proximoSabado() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  while (d.getDay() !== 6) d.setDate(d.getDate() + 1)
+  return aISO(d)
 }
 
 const base = {
@@ -63,6 +77,16 @@ describe('POST /api/reservas · validaciones', () => {
 
     assert.equal(res.status, 400)
     assert.match(res.body.message, /ya pas/i)
+  })
+
+  test('fecha en fin de semana -> 400', async () => {
+    const res = await request(app)
+      .post('/api/reservas')
+      .set(auth)
+      .send({ ...base, fecha: proximoSabado() })
+
+    assert.equal(res.status, 400)
+    assert.match(res.body.message, /lunes a viernes/i)
   })
 
   test('hora de fin anterior a la de inicio -> 400', async () => {

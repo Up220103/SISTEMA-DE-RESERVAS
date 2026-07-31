@@ -10,12 +10,14 @@ import {
 import { getAprobaciones, patchAprobacion } from '../controllers/aprobacion.controller.js'
 import { getCalendario } from '../controllers/calendario.controller.js'
 import { getReporteCubiculos, getReporteCubiculosPdf } from '../controllers/reporte.controller.js'
-import { requireAuth, requireRol } from '../middlewares/auth.middleware.js'
+import { requireAuth } from '../middlewares/auth.middleware.js'
+import { requireAdminBiblioteca } from '../middlewares/role.middleware.js'
 
 const router = Router()
 
-// Guard global: autenticado + Admin Biblioteca.
-router.use(requireAuth, requireRol(3))
+// Guard global: autenticado + Admin Biblioteca. El rol se lee de la BD (no del
+// JWT) para que quitarle el rol a alguien le cierre el panel al instante.
+router.use(requireAuth, requireAdminBiblioteca)
 
 // Gestión de cubículos (CRUD).
 router.get('/cubiculos', getCubiculos)

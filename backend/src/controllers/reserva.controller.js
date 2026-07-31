@@ -7,6 +7,9 @@ import {
   reservasDeEspacios,
   bloqueosDeEspacios,
   reservasDeUsuarioEnFecha,
+  reservaConDueno,
+  cancelarReservas,
+  registrarHistorial,
 } from '../models/reserva.model.js'
 import { espaciosPorTipo, espacioPorId } from '../models/catalogo.model.js'
 import { crearNotificacion } from '../models/notificacion.model.js'
@@ -23,6 +26,15 @@ function hoyISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 const horaNum = (t) => parseInt(String(t).slice(0, 2), 10)
+
+// ¿La fecha ISO cae en sabado o domingo? La universidad no agenda en fin de
+// semana (el calendario del frontend ya los deshabilita; aqui se valida de
+// verdad, porque un cliente puede llamar a la API directamente).
+function esFinDeSemana(fechaISO) {
+  const [y, m, d] = fechaISO.split('-').map(Number)
+  const dia = new Date(y, m - 1, d).getDay()
+  return dia === 0 || dia === 6
+}
 
 // GET /api/reservas/mias
 export async function misReservas(req, res, next) {
@@ -87,6 +99,51 @@ export async function getHorasOcupadas(req, res, next) {
   }
 }
 
+// PATCH /api/reservas/:id/cancelar
+// El propio usuario cancela su reserva. Los terminos aceptados al reservar dan
+// un margen de 2 horas de anticipacion; al cancelar, el horario se libera de
+// inmediato para los demas (deja de contar como reserva activa).
+const HORAS_ANTICIPACION = 2
+
+export async function cancelarMiReserva(req, res, next) {
+  try {
+    const reserva = await reservaConDueno(Number(req.params.id))
+    if (!reserva) return res.status(404).json({ message: 'Reserva no encontrada.' })
+    if (reserva.usuario_id !== req.user.id) {
+      // 404 y no 403: no revelamos la existencia de reservas ajenas.
+      return res.status(404).json({ message: 'Reserva no encontrada.' })
+    }
+    if (!['Pendiente', 'Confirmada'].includes(reserva.estado)) {
+      return res
+        .status(409)
+        .json({ message: `Esta reserva ya está ${reserva.estado.toLowerCase()}.` })
+    }
+
+    const inicio = new Date(`${reserva.fecha_reserva}T${reserva.hora_inicio}`)
+    const margenMs = HORAS_ANTICIPACION * 60 * 60 * 1000
+    if (inicio.getTime() - Date.now() < margenMs) {
+      return res.status(409).json({
+        message: `Solo puedes cancelar con al menos ${HORAS_ANTICIPACION} horas de anticipación.`,
+      })
+    }
+
+    await cancelarReservas([reserva.reserva_id])
+    try {
+      await registrarHistorial(reserva.reserva_id, req.user.id, 'Cancelada', 'Cancelada por el usuario')
+    } catch {
+      /* el historial es informativo: no debe tumbar la cancelacion */
+    }
+    await crearNotificacion(
+      req.user.id,
+      'Reserva cancelada',
+      `Cancelaste tu reserva de ${reserva.espacio} (${reserva.edificio}) el ${reserva.fecha_reserva} de ${String(reserva.hora_inicio).slice(0, 5)} a ${String(reserva.hora_fin).slice(0, 5)}. El horario vuelve a estar disponible.`,
+    )
+    res.json({ reserva_id: reserva.reserva_id, estado: 'Cancelada' })
+  } catch (err) {
+    next(err)
+  }
+}
+
 // POST /api/reservas
 // Body: { espacio_id? , tipo_id? , titulo, fecha, hora_inicio, hora_fin, observaciones? }
 // Si viene tipo_id sin espacio_id (caso Cubículo), se auto-asigna un espacio libre.
@@ -105,11 +162,22 @@ export async function postReserva(req, res, next) {
     if (fecha < hoyISO()) {
       return res.status(400).json({ message: 'No puedes reservar en una fecha que ya pasó.' })
     }
+    if (esFinDeSemana(fecha)) {
+      return res
+        .status(400)
+        .json({ message: 'Solo se puede reservar de lunes a viernes.' })
+    }
     if (!HORA_RE.test(hora_inicio) || !HORA_RE.test(hora_fin) || hora_inicio >= hora_fin) {
       return res.status(400).json({ message: 'Horario inválido: revisa la hora de inicio y fin.' })
     }
     if (horaNum(hora_inicio) < HORA_MIN || horaNum(hora_fin) > HORA_MAX) {
       return res.status(400).json({ message: 'El horario permitido es de 8:00 a 20:00.' })
+    }
+    // Hoy solo se aceptan bloques que aun no han empezado.
+    if (fecha === hoyISO() && horaNum(hora_inicio) <= new Date().getHours()) {
+      return res
+        .status(400)
+        .json({ message: 'Esa hora ya pasó. Elige un horario posterior.' })
     }
 
     // El usuario no puede tener dos reservas en el mismo horario (no puede estar en dos lugares).
