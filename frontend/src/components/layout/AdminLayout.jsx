@@ -14,8 +14,8 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
       <Header onAbrirPerfil={abrirPerfil} />
-      <div className="flex flex-1">
-        <main className="flex-1 overflow-x-auto px-10 py-10">
+      <div className="flex flex-1 flex-col lg:flex-row">
+        <main className="min-w-0 flex-1 overflow-x-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
           <Outlet />
         </main>
         <Sidebar onAbrirPerfil={abrirPerfil} />
