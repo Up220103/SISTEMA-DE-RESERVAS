@@ -1,5 +1,6 @@
 // Controladores de autenticacion (BD reservas_upa, tabla `usuario`).
 // Respuestas: login/register -> { token, user }; errores -> { message }.
+import crypto from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
@@ -11,6 +12,14 @@ import {
   actualizarPassword,
   actualizarPerfil,
 } from '../models/user.model.js'
+import {
+  crearSolicitud,
+  solicitudVigentePorToken,
+  marcarUsada,
+  MINUTOS_VIGENCIA,
+} from '../models/password.model.js'
+import { enviarCorreo, correoRestablecer } from '../services/correo.service.js'
+import { crearNotificacion } from '../models/notificacion.model.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secreto_de_desarrollo'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h'
@@ -24,6 +33,15 @@ const EMAIL_DOCENTE = /^[a-z0-9._%+-]+@upa\.edu\.mx$/i
 // Roles asignados automaticamente segun el dominio del correo (ver tabla rol).
 const ROL_ESTUDIANTE = 1
 const ROL_DOCENTE = 2
+
+// Cuentas institucionales: su nombre identifica a la dependencia (Biblioteca,
+// Admin General), no a la persona que la atiende, asi que es FIJO. Quien la use
+// puede cambiar su telefono y su contrasena, pero no renombrar la cuenta.
+const ROLES_NOMBRE_FIJO = [3, 4] // Admin Biblioteca, Admin General
+
+export function tieneNombreFijo(rolId) {
+  return ROLES_NOMBRE_FIJO.includes(Number(rolId))
+}
 
 // Devuelve el rol_id que corresponde al correo, o null si no es un correo UPA valido.
 // Se comprueba primero alumno: su subdominio (@alumnos.upa.edu.mx) no coincide con
@@ -163,6 +181,9 @@ export async function perfil(req, res, next) {
         rol: u.nombre_rol,
         rol_id: u.rol_id,
         estado: u.estado,
+        // El frontend usa esto para no ofrecer editar el nombre de las
+        // cuentas institucionales (Biblioteca / Admin General).
+        nombre_fijo: tieneNombreFijo(u.rol_id),
       },
     })
   } catch (err) {
@@ -174,10 +195,31 @@ export async function perfil(req, res, next) {
 export async function editarPerfil(req, res, next) {
   try {
     const { nombre, apellido, telefono } = req.body || {}
-    if (!nombre || !apellido) {
+
+    const actual = await perfilPorId(req.user.id)
+    if (!actual) return res.status(404).json({ message: 'Usuario no encontrado.' })
+
+    // El telefono debe seguir siendo de 10 digitos si se envia.
+    if (telefono && !/^\d{10}$/.test(String(telefono))) {
+      return res.status(400).json({ message: 'El teléfono debe tener exactamente 10 dígitos.' })
+    }
+
+    // En las cuentas institucionales el nombre no se toca: se conserva el de
+    // la BD aunque el cliente mande otro.
+    let nuevoNombre = nombre
+    let nuevoApellido = apellido
+    if (tieneNombreFijo(actual.rol_id)) {
+      nuevoNombre = actual.nombre
+      nuevoApellido = actual.apellido
+    } else if (!nombre || !apellido) {
       return res.status(400).json({ message: 'Nombre y apellido son obligatorios.' })
     }
-    await actualizarPerfil(req.user.id, { nombre, apellido, telefono })
+
+    await actualizarPerfil(req.user.id, {
+      nombre: nuevoNombre,
+      apellido: nuevoApellido,
+      telefono,
+    })
     const u = await perfilPorId(req.user.id)
     res.json({
       perfil: {
@@ -191,6 +233,9 @@ export async function editarPerfil(req, res, next) {
         rol: u.nombre_rol,
         rol_id: u.rol_id,
         estado: u.estado,
+        // El frontend usa esto para no ofrecer editar el nombre de las
+        // cuentas institucionales (Biblioteca / Admin General).
+        nombre_fijo: tieneNombreFijo(u.rol_id),
       },
     })
   } catch (err) {
@@ -219,6 +264,110 @@ export async function cambiarPassword(req, res, next) {
     const nuevoHash = await bcrypt.hash(nueva, BCRYPT_ROUNDS)
     await actualizarPassword(req.user.id, nuevoHash)
     res.json({ message: 'Contraseña actualizada correctamente.' })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ------------------------------------------- OLVIDE MI CONTRASEÑA ---
+// El token viaja en el enlace; en la BD solo se guarda su SHA-256.
+const hashToken = (t) => crypto.createHash('sha256').update(t).digest('hex')
+
+// URL del frontend a la que apunta el enlace del correo.
+const APP_URL = process.env.APP_URL || 'http://localhost:5173'
+
+// POST /api/auth/olvide-password   body: { email }
+// SIEMPRE responde lo mismo, exista o no la cuenta: si el mensaje cambiara,
+// cualquiera podría usar este endpoint para averiguar qué correos están dados
+// de alta en la universidad.
+export async function olvidePassword(req, res, next) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    if (!email) {
+      return res.status(400).json({ message: 'Indica tu correo institucional.' })
+    }
+
+    const respuestaGenerica = {
+      message:
+        'Si el correo corresponde a una cuenta registrada, te enviamos un enlace para restablecer tu contraseña. Revisa tu bandeja.',
+    }
+
+    const usuario = await findByEmail(email)
+    // Cuenta inexistente o desactivada: se corta aquí, con la misma respuesta.
+    if (!usuario || usuario.estado !== 'Activo') {
+      return res.json(respuestaGenerica)
+    }
+
+    const token = crypto.randomBytes(32).toString('hex')
+    await crearSolicitud(usuario.usuario_id, hashToken(token))
+
+    const enlace = `${APP_URL}/restablecer?token=${token}`
+    const { asunto, texto } = correoRestablecer({
+      nombre: usuario.nombre,
+      enlace,
+      minutos: MINUTOS_VIGENCIA,
+    })
+    const envio = await enviarCorreo({ para: usuario.email, asunto, texto })
+
+    // El administrador ve la solicitud en su panel y puede resolverla a mano.
+    res.json({
+      ...respuestaGenerica,
+      modo: envio.modo,
+      // En modo demo NO sale correo de verdad, así que se devuelve el enlace
+      // para poder probar el flujo completo. Con SMTP configurado no se expone.
+      ...(envio.modo === 'demo' ? { enlace_demo: enlace } : {}),
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /api/auth/restablecer/:token -> valida el enlace antes de pintar el formulario
+export async function validarTokenPassword(req, res, next) {
+  try {
+    const solicitud = await solicitudVigentePorToken(hashToken(String(req.params.token || '')))
+    if (!solicitud) {
+      return res
+        .status(404)
+        .json({ message: 'El enlace no es válido o ya caducó. Solicita uno nuevo.' })
+    }
+    res.json({ valido: true, email: solicitud.email, nombre: solicitud.nombre })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// POST /api/auth/restablecer   body: { token, nueva }
+export async function restablecerPassword(req, res, next) {
+  try {
+    const { token, nueva } = req.body || {}
+    if (!token || !nueva) {
+      return res.status(400).json({ message: 'Faltan el enlace y la nueva contraseña.' })
+    }
+    if (String(nueva).length < 8) {
+      return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.' })
+    }
+
+    const solicitud = await solicitudVigentePorToken(hashToken(String(token)))
+    if (!solicitud) {
+      return res
+        .status(404)
+        .json({ message: 'El enlace no es válido o ya caducó. Solicita uno nuevo.' })
+    }
+    if (solicitud.estado !== 'Activo') {
+      return res.status(403).json({ message: 'La cuenta está inactiva. Contacta al administrador.' })
+    }
+
+    await actualizarPassword(solicitud.usuario_id, await bcrypt.hash(nueva, BCRYPT_ROUNDS))
+    // Un enlace sirve una sola vez.
+    await marcarUsada(solicitud.solicitud_id)
+    await crearNotificacion(
+      solicitud.usuario_id,
+      'Contraseña restablecida',
+      'Tu contraseña se cambió mediante el enlace de recuperación. Si no fuiste tú, avisa a soporte de inmediato.',
+    )
+
+    res.json({ message: 'Contraseña actualizada. Ya puedes iniciar sesión.' })
   } catch (err) {
     next(err)
   }

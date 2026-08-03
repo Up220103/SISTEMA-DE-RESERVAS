@@ -23,7 +23,8 @@ export async function listUsuarios() {
 
 export async function findUsuario(usuarioId) {
   const [rows] = await query(
-    `SELECT u.usuario_id, u.nombre, u.apellido, u.email, u.estado, u.rol_id, r.nombre_rol
+    `SELECT u.usuario_id, u.nombre, u.apellido, u.email, u.estado, u.rol_id,
+            u.telefono, r.nombre_rol
        FROM usuario u JOIN rol r ON r.rol_id = u.rol_id
       WHERE u.usuario_id = ? LIMIT 1`,
     [usuarioId],
@@ -51,6 +52,16 @@ export async function listReservasUsuario(usuarioId, limit = 5) {
 
 export async function setUsuarioEstado(usuarioId, estado) {
   await query('UPDATE usuario SET estado = ? WHERE usuario_id = ?', [estado, usuarioId])
+  return findUsuario(usuarioId)
+}
+
+// Actualiza los datos de contacto de un usuario (los edita el Admin General).
+// El correo NO se toca: de el dependen el rol y la matricula que se muestra.
+export async function updateUsuario(usuarioId, { nombre, apellido, telefono }) {
+  await query(
+    'UPDATE usuario SET nombre = ?, apellido = ?, telefono = ? WHERE usuario_id = ?',
+    [nombre, apellido, telefono || null, usuarioId],
+  )
   return findUsuario(usuarioId)
 }
 
@@ -244,8 +255,8 @@ export async function getCierre() {
 
 export async function setCierre(adminId, inicio, fin) {
   // Reemplaza el cierre anterior (solo el de ciclo escolar; no toca otros bloqueos).
-  await query('DELETE FROM bloqueo_espacio WHERE motivo = ?', [MOTIVO_CIERRE])
-  const [espacios] = await query('SELECT espacio_id FROM espacio')
+  await borrarBloqueosDeCierre()
+  const [espacios] = await query("SELECT espacio_id, estado FROM espacio")
   const fi = `${inicio} 00:00:00`
   const ff = `${fin} 23:59:59`
   for (const e of espacios) {
@@ -255,9 +266,50 @@ export async function setCierre(adminId, inicio, fin) {
       [e.espacio_id, adminId, fi, ff, MOTIVO_CIERRE],
     )
   }
+
+  // El trigger `trg_bloqueo_after_insert` acaba de dejar TODOS los espacios en
+  // 'Bloqueado', pero un cierre solo cubre un rango de fechas: si los dejaramos
+  // asi, un cierre programado para diciembre impediria reservar tambien mañana.
+  // Se devuelve su estado a los que estaban 'Disponible'; el rango sigue
+  // protegido por el propio bloqueo (regla 3 del trigger de reserva y el
+  // calculo de horas ocupadas), que si mira las fechas.
+  const disponibles = espacios.filter((e) => e.estado === 'Disponible').map((e) => e.espacio_id)
+  if (disponibles.length) {
+    const marcas = disponibles.map(() => '?').join(',')
+    await query(
+      `UPDATE espacio SET estado = 'Disponible' WHERE espacio_id IN (${marcas})`,
+      disponibles,
+    )
+  }
   return getCierre()
 }
 
-export async function deleteCierre() {
+// Quita las filas del cierre y REACTIVA los espacios que dejo bloqueados.
+//
+// Ojo: el trigger `trg_bloqueo_after_insert` pone el espacio en 'Bloqueado' al
+// crear el bloqueo, pero no existe el trigger inverso al borrarlo. Si solo se
+// borraran las filas, todos los espacios se quedarian en 'Bloqueado' para
+// siempre y el sistema no aceptaria ni una reserva mas. Por eso se restauran
+// aqui: solo los que este cierre bloqueo y que no tengan otro bloqueo vigente.
+async function borrarBloqueosDeCierre() {
+  await query(
+    `UPDATE espacio e
+        SET e.estado = 'Disponible'
+      WHERE e.estado = 'Bloqueado'
+        AND EXISTS (
+          SELECT 1 FROM bloqueo_espacio b
+           WHERE b.espacio_id = e.espacio_id AND b.motivo = ?
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM bloqueo_espacio b2
+           WHERE b2.espacio_id = e.espacio_id AND b2.motivo <> ?
+             AND b2.fecha_fin >= NOW()
+        )`,
+    [MOTIVO_CIERRE, MOTIVO_CIERRE],
+  )
   await query('DELETE FROM bloqueo_espacio WHERE motivo = ?', [MOTIVO_CIERRE])
+}
+
+export async function deleteCierre() {
+  await borrarBloqueosDeCierre()
 }

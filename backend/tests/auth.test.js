@@ -32,6 +32,7 @@ describe('POST /api/auth/register', () => {
     apellido: 'Garcia',
     email: 'up220199@alumnos.upa.edu.mx',
     password: 'upa12345',
+    telefono: '4491234567',
   }
 
   test('faltan campos obligatorios -> 400', async () => {
@@ -50,12 +51,24 @@ describe('POST /api/auth/register', () => {
     assert.match(res.body.message, /alumnos\.upa\.edu\.mx/i)
   })
 
-  test('rechaza correo de docente (el auto-registro es solo para alumnos)', async () => {
+  // El auto-registro acepta alumno (up<matricula>@alumnos.upa.edu.mx) y docente
+  // (nombre.apellido@upa.edu.mx); cualquier otra forma se rechaza sin tocar la BD.
+  test('rechaza un correo UPA mal formado (alumno sin matricula)', async () => {
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ ...valido, email: 'maria.lopez@upa.edu.mx' })
+      .send({ ...valido, email: 'ana@alumnos.upa.edu.mx' })
 
     assert.equal(res.status, 400)
+    assert.match(res.body.message, /correo UPA/i)
+  })
+
+  test('rechaza telefono que no tiene 10 digitos', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ ...valido, telefono: '449123' })
+
+    assert.equal(res.status, 400)
+    assert.match(res.body.message, /10 d/i)
   })
 
   test('rechaza contrasena de menos de 8 caracteres', async () => {

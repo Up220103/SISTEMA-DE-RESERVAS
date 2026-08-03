@@ -4,8 +4,8 @@ import { useSelector, useDispatch } from 'react-redux'
 import PageHeading from '../../components/ui/PageHeading.jsx'
 import Icon from '../../components/ui/Icon.jsx'
 import {
-  selectCubiculos, selectEdificio, selectResumen, selectCubStatus, selectCubError,
-  fetchCubiculos, setEstado, agregarCubiculo, eliminarCubiculo,
+  selectCubiculos, selectEdificio, selectResumen, selectCubStatus, selectCubError, selectCubAviso,
+  fetchCubiculos, setEstado, agregarCubiculo, eliminarCubiculo, limpiarAviso,
 } from '../../features/cubiculos/cubiculosSlice.js'
 
 // Estilos por estado del cubículo.
@@ -45,6 +45,7 @@ export default function CubiculosPage() {
   const resumen = useSelector(selectResumen)
   const status = useSelector(selectCubStatus)
   const errorCarga = useSelector(selectCubError)
+  const aviso = useSelector(selectCubAviso)
   const [detalleId, setDetalleId] = useState(null)
   const [mostrarAgregar, setMostrarAgregar] = useState(false)
   const [nuevaCap, setNuevaCap] = useState(4)
@@ -116,6 +117,19 @@ export default function CubiculosPage() {
             </button>
           </div>
         </div>
+
+        {/* Consecuencia de inhabilitar: el admin ve a cuántas reservas afectó. */}
+        {aviso && (
+          <div className="mb-4 flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">{aviso}</p>
+            <button
+              onClick={() => dispatch(limpiarAviso())}
+              className="shrink-0 text-sm font-semibold text-amber-700 hover:text-amber-900"
+            >
+              Entendido
+            </button>
+          </div>
+        )}
 
         {/* Estados de carga / error / vacío: nunca mostrar ceros sin explicación. */}
         {status === 'loading' && (

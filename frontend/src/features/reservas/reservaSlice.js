@@ -76,6 +76,20 @@ export const crearReserva = createAsyncThunk('reservas/crear', async (payload, {
   }
 })
 
+// El usuario cancela su propia reserva (margen de 2 h que aceptó en los
+// términos). Al cancelarla, el backend libera el horario para los demás.
+export const cancelarMiReserva = createAsyncThunk(
+  'reservas/cancelar',
+  async (reservaId, { rejectWithValue }) => {
+    try {
+      const { data } = await api.patch(`/reservas/${reservaId}/cancelar`)
+      return data
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'No se pudo cancelar la reserva')
+    }
+  },
+)
+
 const reservaSlice = createSlice({
   name: 'reservas',
   initialState: {
@@ -87,6 +101,7 @@ const reservaSlice = createSlice({
     notificaciones: [],
     noLeidas: 0,
     creando: false,
+    cancelandoId: null,
     error: null,
     exito: null,
   },
@@ -134,6 +149,21 @@ const reservaSlice = createSlice({
       })
       .addCase(crearReserva.rejected, (state, action) => {
         state.creando = false
+        state.error = action.payload
+      })
+      .addCase(cancelarMiReserva.pending, (state, action) => {
+        state.cancelandoId = action.meta.arg
+        state.error = null
+        state.exito = null
+      })
+      .addCase(cancelarMiReserva.fulfilled, (state, action) => {
+        state.cancelandoId = null
+        state.exito = 'Reserva cancelada. El horario vuelve a estar disponible.'
+        const r = state.mias.find((x) => x.reserva_id === action.payload.reserva_id)
+        if (r) r.estado = 'Cancelada'
+      })
+      .addCase(cancelarMiReserva.rejected, (state, action) => {
+        state.cancelandoId = null
         state.error = action.payload
       })
   },

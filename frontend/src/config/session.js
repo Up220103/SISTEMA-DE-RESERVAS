@@ -1,13 +1,7 @@
-// Datos mock del shell del panel (sesión + navegación).
-// Al conectar el backend, `sessionUser` vendrá de authSlice y `navItems`
-// puede filtrarse según el rol real del usuario.
-
-export const sessionUser = {
-  initials: 'LS',
-  name: 'Lic. Sofía Ramos',
-  email: 'biblioteca@upa.edu.mx',
-  role: 'ADMIN BIBLIOTECA',
-}
+// Navegación del panel de Admin Biblioteca.
+// Los datos de la sesión ya NO viven aquí: se leen del usuario autenticado
+// (authSlice) en el Sidebar, para que el panel muestre a quien de verdad
+// inició sesión.
 
 export const navItems = [
   { key: 'calendario',     label: 'Calendario',        to: '/admin/calendario',     icon: 'calendar' },

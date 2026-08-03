@@ -261,6 +261,30 @@ CREATE TABLE notificacion (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ---------- SOLICITUD_PASSWORD ("olvide mi contrasena") ----------
+-- Una fila por solicitud desde la pantalla de login.
+-- NUNCA se guarda el token en claro: se guarda su SHA-256 (token_hash). Quien
+-- pueda leer la tabla no puede reconstruir el enlace de restablecimiento.
+CREATE TABLE solicitud_password (
+    solicitud_id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id   INT NOT NULL,
+    token_hash   CHAR(64) NOT NULL,
+    fecha_solicitud DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expira       DATETIME NOT NULL,
+    usado        BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Queda constancia si fue un administrador quien la resolvio a mano.
+    atendida_por INT NULL,
+    CONSTRAINT fk_solicitud_usuario
+        FOREIGN KEY (usuario_id) REFERENCES usuario(usuario_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_solicitud_admin
+        FOREIGN KEY (atendida_por) REFERENCES usuario(usuario_id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT chk_solicitud_rango CHECK (expira > fecha_solicitud)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_solicitud_token ON solicitud_password (token_hash);
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
@@ -282,9 +306,12 @@ INSERT INTO carrera (nombre, codigo) VALUES
 
 -- ---------- EDIFICIO ----------
 INSERT INTO edificio (nombre, codigo, ubicacion, descripcion) VALUES
-    ('Biblioteca', 'E5', 'Zona central',  'Biblioteca central y cubículos de estudio'), -- 1
-    ('Edificio A', 'EA', 'Ala norte',     'Auditorios y laboratorios de cómputo'),      -- 2
-    ('Edificio B', 'EB', 'Ala sur',       'Laboratorios y salas de reuniones');         -- 3
+    ('Biblioteca', 'BIB', 'Zona central', 'Biblioteca central y cubículos de estudio'), -- 1
+    ('Edificio 1', 'E1',  'Campus',       'Auditorio 1'),                                -- 2
+    ('Edificio 2', 'E2',  'Campus',       'Aula disruptiva'),                            -- 3
+    ('Edificio 3', 'E3',  'Campus',       'Auditorio 3 y aula audiovisual'),             -- 4
+    ('Edificio 5', 'E5',  'Campus',       'Laboratorios de cómputo (501 al 506)'),       -- 5
+    ('Edificio 6', 'E6',  'Campus',       'Laboratorios y sala de reuniones');           -- 6
 
 -- ---------- TIPO_ESPACIO ----------
 INSERT INTO tipo_espacio (nombre_tipo, descripcion, capacidad_default) VALUES
@@ -303,11 +330,14 @@ INSERT INTO estado_reserva (nombre_estado) VALUES
 
 -- ---------- EDIFICIO_TIPO_ESPACIO (M:N) ----------
 INSERT INTO edificio_tipo_espacio (edificio_id, tipo_id, cantidad_total) VALUES
-    (1, 1, 50),  -- Biblioteca  -> Cubículo   (50)
-    (2, 2, 2),   -- Edificio A  -> Auditorio  (2)
-    (2, 3, 8),   -- Edificio A  -> Laboratorio(8)
-    (3, 3, 5),   -- Edificio B  -> Laboratorio(5)
-    (3, 4, 4);   -- Edificio B  -> Sala Reun. (4)
+    (1, 1, 50),  -- Biblioteca -> Cubículo    (50)
+    (2, 2, 1),   -- Edificio 1 -> Auditorio   (Auditorio 1)
+    (3, 3, 1),   -- Edificio 2 -> Laboratorio (Aula disruptiva)
+    (4, 2, 1),   -- Edificio 3 -> Auditorio   (Auditorio 3)
+    (4, 3, 1),   -- Edificio 3 -> Laboratorio (Aula audiovisual)
+    (5, 3, 6),   -- Edificio 5 -> Laboratorio (501 al 506)
+    (6, 3, 2),   -- Edificio 6 -> Laboratorio (2 labs)
+    (6, 4, 1);   -- Edificio 6 -> Sala Reun.  (1)
 
 -- ---------- ROL_TIPO_ESPACIO (M:N) ----------
 INSERT INTO rol_tipo_espacio (rol_id, tipo_id) VALUES
@@ -323,8 +353,10 @@ INSERT INTO usuario (rol_id, nombre, apellido, email, password_hash, telefono, e
     (1, 'Luis',   'Pérez',   'up220102@alumnos.upa.edu.mx', '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000002', 'Activo'), -- 2 estudiante
     (2, 'María',  'López',   'maria.lopez@upa.edu.mx',  '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000003', 'Activo'), -- 3 docente
     (2, 'Jorge',  'Ramírez', 'jorge.ramirez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000004', 'Activo'), -- 4 docente
-    (3, 'Sofía',  'Hernández','biblioteca@upa.edu.mx','$2a$10$1Tfft57kejFf.ta5Po32DOScI1Q9CF85xIiqbEyk4Ir.ZvQaBVBdy', '5551000005', 'Activo'), -- 5 admin biblioteca (login: biblioteca123)
-    (4, 'Carlos', 'Méndez',  'carlos.mendez@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000006', 'Activo'); -- 6 admin general
+    -- Cuentas institucionales: su nombre es fijo (identifica a la dependencia,
+    -- no a la persona que la atiende) y no se puede editar desde el perfil.
+    (3, 'Biblioteca', 'UPA',     'biblioteca@upa.edu.mx','$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000005', 'Activo'), -- 5 admin biblioteca
+    (4, 'Admin',      'General', 'admin@upa.edu.mx',     '$2a$10$1wWG6L1TYw72/m5XEu8Z3.pZ3onNxku2NKQV3PPcG5PqPDiCXPRp6', '5551000006', 'Activo'); -- 6 admin general
 
 -- ---------- DOCENTE ----------
 INSERT INTO docente (usuario_id, num_empleado, departamento) VALUES
@@ -343,19 +375,28 @@ INSERT INTO estudiante (usuario_id, carrera_id, grupo_id, matricula, semestre, d
 
 -- ---------- ESPACIO ----------
 INSERT INTO espacio (tipo_id, edificio_id, nombre, capacidad, estado) VALUES
-    (1, 1, 'Cubículo 1',        6,   'Disponible'),  -- 1 cubículo
-    (1, 1, 'Cubículo 2',        6,   'Disponible'),  -- 2 cubículo
-    (1, 1, 'Cubículo 3',        4,   'Disponible'),  -- 3 cubículo
-    (2, 2, 'Auditorio Principal',200,'Disponible'),  -- 4 auditorio
-    (3, 2, 'EA-Lab1',           30,  'Disponible'),  -- 5 laboratorio
-    (3, 3, 'EB-Lab3',           25,  'Disponible'),  -- 6 laboratorio
-    (4, 3, 'EB-Sala2',          12,  'Disponible');  -- 7 sala de reuniones
+    (1, 1, 'Cubículo 1',        6,   'Disponible'),  -- 1 cubículo (Biblioteca)
+    (1, 1, 'Cubículo 2',        6,   'Disponible'),  -- 2 cubículo (Biblioteca)
+    (1, 1, 'Cubículo 3',        4,   'Disponible'),  -- 3 cubículo (Biblioteca)
+    (2, 2, 'Auditorio 1',       200, 'Disponible'),  -- 4 auditorio  (Edificio 1)
+    (3, 3, 'Aula disruptiva',   35,  'Disponible'),  -- 5 laboratorio (Edificio 2)
+    (2, 4, 'Auditorio 3',       200, 'Disponible'),  -- 6 auditorio  (Edificio 3)
+    (3, 4, 'Aula audiovisual',  40,  'Disponible'),  -- 7 laboratorio (Edificio 3)
+    (3, 5, 'Laboratorio 501',   35,  'Disponible'),  -- 8  laboratorio (Edificio 5)
+    (3, 5, 'Laboratorio 502',   35,  'Disponible'),  -- 9  laboratorio (Edificio 5)
+    (3, 5, 'Laboratorio 503',   30,  'Disponible'),  -- 10 laboratorio (Edificio 5)
+    (3, 5, 'Laboratorio 504',   35,  'Disponible'),  -- 11 laboratorio (Edificio 5)
+    (3, 5, 'Laboratorio 505',   30,  'Disponible'),  -- 12 laboratorio (Edificio 5)
+    (3, 5, 'Laboratorio 506',   35,  'Disponible'),  -- 13 laboratorio (Edificio 5)
+    (3, 6, 'Laboratorio Gabriel García Márquez', 30, 'Disponible'), -- 14 laboratorio (Edificio 6)
+    (3, 6, 'Laboratorio Leona Vicario',          30, 'Disponible'), -- 15 laboratorio (Edificio 6)
+    (4, 6, 'Sala de Reuniones Joaquín López Dóriga', 12, 'Disponible'); -- 16 sala (Edificio 6)
 
 -- ---------- RESERVA ----------
 INSERT INTO reserva (usuario_id, espacio_id, estado_id, titulo, fecha_reserva, hora_inicio, hora_fin, observaciones) VALUES
     (1, 1, 2, 'Estudio',              '2026-07-13', '09:00:00', '11:00:00', 'Sesión de estudio individual'), -- estudiante en cubículo
     (3, 4, 1, 'Cálculo I',            '2026-07-14', '12:00:00', '14:00:00', 'Clase magistral'),             -- docente en auditorio
-    (4, 6, 2, 'Reunión de robótica',  '2026-07-15', '16:00:00', '18:00:00', 'Prueba de prototipos'),       -- docente en laboratorio
+    (4, 8, 2, 'Reunión de robótica',  '2026-07-15', '16:00:00', '18:00:00', 'Prueba de prototipos'),       -- docente en laboratorio (Lab 501)
     -- Reservas de cubículos PENDIENTES (para el panel de Aprobaciones del Admin Biblioteca)
     (1, 2, 1, 'Reserva de cubículo',  '2026-07-27', '09:00:00', '11:00:00', 'Estudio grupal'),             -- estudiante -> Cubículo 2
     (3, 3, 1, 'Reserva de cubículo',  '2026-07-28', '10:00:00', '12:00:00', 'Asesoría de proyecto'),       -- docente -> Cubículo 3
@@ -374,9 +415,9 @@ INSERT INTO historial_reserva (reserva_id, usuario_gestor_id, accion, comentario
 
 -- ---------- NOTIFICACION ----------
 INSERT INTO notificacion (usuario_id, titulo, mensaje, leida) VALUES
-    (1, 'Reserva confirmada', 'Tu reserva del cubículo E5-101 fue confirmada.', FALSE),
-    (3, 'Reserva pendiente',  'Tu reserva del Auditorio Principal está pendiente de aprobación.', FALSE),
-    (4, 'Reserva confirmada', 'Tu reserva del laboratorio EB-Lab3 fue confirmada.', TRUE);
+    (1, 'Reserva confirmada', 'Tu reserva del Cubículo 1 fue confirmada.', FALSE),
+    (3, 'Reserva pendiente',  'Tu reserva del Auditorio 1 está pendiente de aprobación.', FALSE),
+    (4, 'Reserva confirmada', 'Tu reserva del Laboratorio 501 fue confirmada.', TRUE);
 
 -- =============================================================================
 --  6. VISTAS DE APOYO (opcionales, facilitan consultas y reglas de negocio)

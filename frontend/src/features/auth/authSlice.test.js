@@ -118,7 +118,7 @@ describe('authSlice · thunk login', () => {
     expect(localStorage.getItem('token')).toBe('jwt-real')
   })
 
-  test('un correo NO demo que falla en backend rechaza sin dejar sesion', async () => {
+  test('un correo que falla en backend rechaza sin dejar sesion', async () => {
     api.post.mockRejectedValue({
       response: { status: 401, data: { message: 'Correo o contrasena incorrectos.' } },
     })
@@ -133,20 +133,20 @@ describe('authSlice · thunk login', () => {
     expect(localStorage.getItem('token')).toBeNull()
   })
 
-  test('un correo demo (sin backend aun) cae al fallback cuando el backend lo rechaza', async () => {
-    // alumno@/profesor@ no estan en la BD: el backend responde 401 y entran en demo.
+  // Ya NO existen cuentas de demostracion en el frontend: todo acceso pasa por
+  // la BD. Si alguien vuelve a meter un fallback, este test lo caza.
+  test('ningun correo entra sin backend: no hay cuentas demo', async () => {
     api.post.mockRejectedValue({
       response: { status: 401, data: { message: 'Correo o contrasena incorrectos.' } },
     })
 
-    const resultado = await login({ email: 'alumno@upa.edu.mx', password: 'lo-que-sea' })(
-      vi.fn(),
-      () => ({}),
-      undefined,
-    )
+    for (const email of ['alumno@upa.edu.mx', 'profesor@upa.edu.mx']) {
+      const resultado = await login({ email, password: 'lo-que-sea' })(vi.fn(), () => ({}), undefined)
 
-    expect(resultado.payload.user.rol_id).toBe(1)
-    expect(localStorage.getItem('token')).toBe('demo-1')
+      expect(resultado.payload).toBe('Correo o contrasena incorrectos.')
+      expect(localStorage.getItem('token')).toBeNull()
+      expect(localStorage.getItem('user')).toBeNull()
+    }
   })
 })
 

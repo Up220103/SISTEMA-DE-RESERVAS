@@ -56,7 +56,13 @@ export default function UserProfileModal({ open, onClose }) {
   }
 
   const guardarPerfil = async () => {
-    if (!edit.nombre.trim() || !edit.apellido.trim()) { setMsgEdit({ tipo: 'err', texto: 'Nombre y apellido son obligatorios.' }); return }
+    // En las cuentas institucionales el nombre ni siquiera se muestra para editar.
+    if (!perfil?.nombre_fijo && (!edit.nombre.trim() || !edit.apellido.trim())) {
+      setMsgEdit({ tipo: 'err', texto: 'Nombre y apellido son obligatorios.' }); return
+    }
+    if (edit.telefono && !/^\d{10}$/.test(edit.telefono)) {
+      setMsgEdit({ tipo: 'err', texto: 'El teléfono debe tener exactamente 10 dígitos.' }); return
+    }
     setGuardandoEdit(true)
     try {
       const { data } = await api.put('/auth/perfil', edit)
@@ -123,9 +129,23 @@ export default function UserProfileModal({ open, onClose }) {
             <p className="text-sm text-slate-400">Cargando datos…</p>
           ) : modoEdit ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <CampoEdit label="Nombre" value={edit.nombre} onChange={(v) => setEdit({ ...edit, nombre: v })} />
-              <CampoEdit label="Apellido" value={edit.apellido} onChange={(v) => setEdit({ ...edit, apellido: v })} />
-              <CampoEdit label="Teléfono" value={edit.telefono} onChange={(v) => setEdit({ ...edit, telefono: v })} />
+              {/* Las cuentas institucionales (Biblioteca / Admin General) tienen
+                  el nombre fijo: identifica a la dependencia, no a la persona. */}
+              {perfil?.nombre_fijo ? (
+                <div className="sm:col-span-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                  <p className="font-mono-upa text-[10px] uppercase tracking-wide text-slate-500">Nombre de la cuenta</p>
+                  <p className="font-display text-sm font-semibold text-[#0F172A]">{perfil?.nombre_completo}</p>
+                  <p className="mt-0.5 font-mono-upa text-[11px] text-slate-400">
+                    Es una cuenta institucional: su nombre no se puede modificar.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <CampoEdit label="Nombre" value={edit.nombre} onChange={(v) => setEdit({ ...edit, nombre: v })} />
+                  <CampoEdit label="Apellido" value={edit.apellido} onChange={(v) => setEdit({ ...edit, apellido: v })} />
+                </>
+              )}
+              <CampoEdit label="Teléfono (10 dígitos)" value={edit.telefono} onChange={(v) => setEdit({ ...edit, telefono: v.replace(/\D/g, '').slice(0, 10) })} />
               <div className="flex items-end">
                 <p className="font-mono-upa text-[11px] text-slate-400">UP/ID, correo, rol y estatus no son editables.</p>
               </div>

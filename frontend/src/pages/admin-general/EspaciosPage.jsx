@@ -61,10 +61,12 @@ export default function EspaciosPage() {
   const edificiosSel = useMemo(() => edificios.filter((e) => e.nombre !== 'Biblioteca'), [edificios])
   const tiposSel = useMemo(() => tipos.filter((t) => t.nombre_tipo !== 'Cubículo'), [tipos])
 
-  // Agrupa espacios por edificio.
+  // Agrupa espacios por edificio. Se excluyen los cubículos de la Biblioteca:
+  // el Admin General no los gestiona (los administra el Admin de Biblioteca).
   const porEdificio = useMemo(() => {
     const map = {}
     for (const e of espacios) {
+      if (e.es_biblioteca) continue
       ;(map[e.edificio] ||= []).push(e)
     }
     return map

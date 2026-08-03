@@ -8,6 +8,7 @@ import {
   actualizarEstadoCubiculo,
   eliminarCubiculo,
 } from '../models/cubiculo.model.js'
+import { cancelarPorEspacioInhabilitado } from '../services/reserva.service.js'
 
 // Estados de espacio que representan "inhabilitado" en el front.
 const ESTADOS_INHABILITADO = ['Mantenimiento', 'Bloqueado']
@@ -78,7 +79,19 @@ export async function patchEstadoCubiculo(req, res, next) {
 
     const estadoBD = estadoFront === 'inhabilitado' ? 'Mantenimiento' : 'Disponible'
     await actualizarEstadoCubiculo(id, estadoBD)
-    res.json({ id, estado: estadoFront })
+
+    // Al inhabilitarlo, las reservas futuras de ese cubiculo ya no se pueden
+    // cumplir: se cancelan y se avisa a cada alumno/docente afectado.
+    let reservasCanceladas = 0
+    const estabaInhabilitado = ESTADOS_INHABILITADO.includes(cub.estado_espacio)
+    if (estadoFront === 'inhabilitado' && !estabaInhabilitado) {
+      reservasCanceladas = await cancelarPorEspacioInhabilitado(
+        id,
+        req.user.id,
+        `${cub.nombre} fue inhabilitado por la administración de la biblioteca`,
+      )
+    }
+    res.json({ id, estado: estadoFront, reservasCanceladas })
   } catch (err) {
     next(err)
   }
