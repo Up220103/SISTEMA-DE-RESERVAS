@@ -68,13 +68,13 @@ export default function AdminGeneralLayout() {
 
       <UserProfileModal open={perfilAbierto} onClose={() => setPerfilAbierto(false)} />
 
-      <div className="flex flex-1">
-        <main className="flex-1 overflow-x-auto px-10 py-10">
+      <div className="flex flex-1 flex-col lg:flex-row">
+        <main className="min-w-0 flex-1 overflow-x-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
           <Outlet />
         </main>
 
-        {/* Sidebar derecho */}
-        <aside className="flex w-72 shrink-0 flex-col gap-6 border-l border-slate-200 bg-white px-6 py-6">
+        {/* Sidebar: a la derecha en escritorio, apilado debajo en móvil */}
+        <aside className="flex w-full shrink-0 flex-col gap-6 border-t border-slate-200 bg-white px-6 py-6 lg:w-72 lg:border-l lg:border-t-0">
           <div className="space-y-3">
             <SectionLabel>SESIÓN ACTIVA</SectionLabel>
             <div className="flex items-center gap-3">

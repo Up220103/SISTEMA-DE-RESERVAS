@@ -30,7 +30,7 @@ export default function Sidebar({ onAbrirPerfil }) {
   const rol = (user?.rol || 'Admin Biblioteca').toUpperCase()
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col gap-6 border-l border-slate-200 bg-white px-6 py-6">
+    <aside className="flex w-full shrink-0 flex-col gap-6 border-t border-slate-200 bg-white px-6 py-6 lg:w-72 lg:border-l lg:border-t-0">
       {/* Sesión activa */}
       <div className="space-y-3">
         <SectionLabel>SESIÓN ACTIVA</SectionLabel>

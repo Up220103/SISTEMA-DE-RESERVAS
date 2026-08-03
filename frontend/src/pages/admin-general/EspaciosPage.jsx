@@ -120,13 +120,13 @@ export default function EspaciosPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageHeading
           eyebrow="ADMIN GENERAL"
           title="Espacios"
           subtitle="Administra los espacios reservables y sus edificios. (Los cubículos de la Biblioteca los gestiona el Admin de Biblioteca.)"
         />
-        <div className="flex shrink-0 gap-2 pt-2">
+        <div className="flex shrink-0 flex-wrap gap-2 pt-2">
           <button
             onClick={() => setFormEdificio({ ...vacioEdificio })}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
