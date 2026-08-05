@@ -12,3 +12,13 @@ npm-debug.log*
 coverage/
 .vite/
 .env.backup-antes-de-docker
+
+# Certificados TLS: NUNCA subir llaves privadas ni certificados a git.
+# Se ignora el material sensible por extension (en cualquier subcarpeta de
+# certs/), pero se conserva la estructura (.gitkeep), plantillas y el README.
+certs/**/*.key
+certs/**/*.crt
+certs/**/*.cer
+certs/**/*.pem
+certs/**/*.pfx
+certs/**/*.csr

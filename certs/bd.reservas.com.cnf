@@ -1,0 +1,25 @@
+# Plantilla OpenSSL para el CSR de la BASE DE DATOS (opcional).
+#   openssl req -new -newkey rsa:2048 -nodes \
+#     -keyout bd.reservas.com/privkey.key \
+#     -out bd.reservas.com.csr \
+#     -config bd.reservas.com.cnf
+
+[req]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+req_extensions     = ext
+
+[dn]
+CN = bd.reservas.com
+O  = Universidad Politecnica
+OU = Sistema de Reservas
+C  = MX
+
+[ext]
+subjectAltName   = @san
+extendedKeyUsage = serverAuth
+
+[san]
+DNS.1 = bd.reservas.com

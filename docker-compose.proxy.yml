@@ -1,0 +1,105 @@
+# =============================================================================
+#  Despliegue con TLS (red local + CA privada)
+#  Nginx (proxy) termina el HTTPS; back y front hablan HTTP dentro de la red.
+#  Solo el proxy expone puertos al host (80/443).
+#
+#  Requisitos ANTES de levantar:
+#    1) Certificados de la CA colocados en:
+#         certs/front.reservas.com/{fullchain.crt, privkey.key}
+#         certs/back.reservas.com/{fullchain.crt, privkey.key}
+#    2) Tu DNS resuelve front/back/bd.reservas.com -> IP de esta máquina.
+#
+#  Uso (cada servicio se puede levantar por separado, en este orden):
+#    docker compose -f docker-compose.proxy.yml up -d db
+#    docker compose -f docker-compose.proxy.yml up -d backend
+#    docker compose -f docker-compose.proxy.yml up -d frontend
+#    docker compose -f docker-compose.proxy.yml up -d proxy
+#  O todo junto:
+#    docker compose -f docker-compose.proxy.yml up -d --build
+#
+#  Acceso:  https://front.reservas.com   ·   https://back.reservas.com/health
+# =============================================================================
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: reservas-upa-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    volumes:
+      - mysql_upa_data:/var/lib/mysql
+      - ./database/sistema_reservas_upa.sql:/docker-entrypoint-initdb.d/01-sistema_reservas_upa.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-character-set-client-handshake
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks: [reservas]
+
+  backend:
+    build:
+      context: ./backend
+    container_name: reservas-upa-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      DB_NAME: ${DB_NAME:-reservas_upa}
+      JWT_SECRET: ${JWT_SECRET:-clave_secreta_desarrollo_upa}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      # El navegador carga el front por https://front.reservas.com: ese es el
+      # origen que CORS debe permitir en el backend.
+      CORS_ORIGIN: https://front.reservas.com
+    # Sin `ports`: el backend NO se expone al host, solo lo alcanza el proxy.
+    networks: [reservas]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # El navegador llama al API por el proxy TLS. Se hornea en el build.
+        VITE_API_URL: https://back.reservas.com/api
+    container_name: reservas-upa-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    # Sin `ports`: solo el proxy lo alcanza (por el nombre `frontend`).
+    networks: [reservas]
+
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: reservas-upa-proxy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+      # Descomenta si activas el stream TLS de MySQL (bd.reservas.com):
+      # - "3306:3306"
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks: [reservas]
+
+volumes:
+  mysql_upa_data:
+    driver: local
+
+networks:
+  reservas:
+    driver: bridge

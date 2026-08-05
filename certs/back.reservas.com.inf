@@ -1,0 +1,37 @@
+; Plantilla certreq (Windows nativo) para el CSR del BACKEND.
+; Generar la solicitud (crea back.reservas.com.csr y la clave queda en el
+; almacen del equipo):
+;   certreq -new back.reservas.com.inf back.reservas.com.csr
+; Enviar el .csr a la CA. Al recibir el .cer firmado, instalarlo con:
+;   certreq -accept back.reservas.com.cer
+
+[Version]
+Signature = "$Windows NT$"
+
+[NewRequest]
+Subject            = "CN=back.reservas.com, O=Universidad Politecnica, C=MX"
+KeySpec            = 1
+KeyLength          = 2048
+Exportable         = TRUE
+MachineKeySet      = TRUE
+SMIME              = FALSE
+PrivateKeyArchive  = FALSE
+UserProtected      = FALSE
+UseExistingKeySet  = FALSE
+ProviderName       = "Microsoft RSA SChannel Cryptographic Provider"
+ProviderType       = 12
+RequestType        = PKCS10
+KeyUsage           = 0xa0            ; digitalSignature | keyEncipherment
+HashAlgorithm      = SHA256
+
+[EnhancedKeyUsageExtension]
+OID = 1.3.6.1.5.5.7.3.1             ; Server Authentication
+
+[Extensions]
+; Subject Alternative Name (obligatorio en navegadores modernos).
+2.5.29.17 = "{text}"
+_continue_ = "dns=back.reservas.com&"
+
+[RequestAttributes]
+; Si la CA de tu amigo usa una plantilla concreta, indicala aqui:
+; CertificateTemplate = WebServer

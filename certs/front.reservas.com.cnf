@@ -1,0 +1,26 @@
+# Plantilla OpenSSL para el CSR del FRONTEND.
+#   openssl req -new -newkey rsa:2048 -nodes \
+#     -keyout front.reservas.com/privkey.key \
+#     -out front.reservas.com.csr \
+#     -config front.reservas.com.cnf
+# El .cer firmado que te devuelva la CA va como front.reservas.com/fullchain.crt
+
+[req]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+req_extensions     = ext
+
+[dn]
+CN = front.reservas.com
+O  = Universidad Politecnica
+OU = Sistema de Reservas
+C  = MX
+
+[ext]
+subjectAltName   = @san
+extendedKeyUsage = serverAuth
+
+[san]
+DNS.1 = front.reservas.com

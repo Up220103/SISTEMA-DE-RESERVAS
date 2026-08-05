@@ -1,0 +1,31 @@
+# Plantilla OpenSSL para el CSR del BACKEND.
+# Genera la clave (directo en su carpeta) + la solicitud con:
+#   openssl req -new -newkey rsa:2048 -nodes \
+#     -keyout back.reservas.com/privkey.key \
+#     -out back.reservas.com.csr \
+#     -config back.reservas.com.cnf
+# Entrega el .csr a tu amigo (la CA). La privkey.key NUNCA se comparte.
+# El .cer firmado que te devuelva va como back.reservas.com/fullchain.crt
+
+[req]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+req_extensions     = ext
+
+[dn]
+CN = back.reservas.com
+O  = Universidad Politecnica
+OU = Sistema de Reservas
+C  = MX
+
+[ext]
+subjectAltName = @san
+# El certificado servira para autenticar un servidor (TLS Web Server).
+extendedKeyUsage = serverAuth
+
+[san]
+DNS.1 = back.reservas.com
+# Si accedes tambien por IP dentro de la red, descomenta y ajusta:
+# IP.1 = 192.168.1.50
